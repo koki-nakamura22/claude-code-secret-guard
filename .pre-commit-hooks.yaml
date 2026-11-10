@@ -1,0 +1,6 @@
+- id: claude-settings
+  name: Keep Claude Code settings free of secrets
+  description: Fail when .claude/settings.local.json is committed, or a committed .claude/settings.json contains a secret.
+  entry: secret-guard check
+  language: python
+  files: (^|/)\.claude/settings(\.local)?\.json$

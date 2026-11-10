@@ -1,0 +1,14 @@
+{
+  "name": "claude-code-secret-guard",
+  "owner": {
+    "name": "Koki NAKAMURA"
+  },
+  "plugins": [
+    {
+      "name": "secret-guard",
+      "source": "./",
+      "description": "Stop passwords in Bash commands from being saved to .claude/settings.local.json, and warn when that file can leak through git.",
+      "version": "0.1.0"
+    }
+  ]
+}
