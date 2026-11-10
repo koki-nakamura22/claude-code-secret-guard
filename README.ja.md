@@ -50,14 +50,35 @@ Claude Code で次の 2 つのコマンドを実行します。
 
 ## 見つけるもの
 
-次の場所にそのまま書かれた値を見つけます。`$VAR`・`${VAR}`・`$(...)` のような参照と、`***`・`<password>`・`xxx` のような仮の値は対象外です。
+次の場所にそのまま書かれた値を見つけます。`$VAR`・`${VAR}`・`$(...)` のような参照と、`***`・`<password>`・`xxx` のような仮の値は対象外です。値が 2 文字以下のときも止めません。
 
-- 秘密らしい名前の環境変数への代入 (`PGPASSWORD=`・`MYSQL_PWD=`・`DB_PASSWORD=`・`API_TOKEN=`・`export AWS_SECRET_ACCESS_KEY=`・`--from-literal=password=`)
-- `mysql`・`mysqldump`・`mariadb` の `-p<password>`、`sshpass -p`、`redis-cli -a`、`docker login -p`
-- `--password=`・`--token`・`--api-key`・`--client-secret` などのオプション (`--password-stdin`・`--token-file` は対象外)
-- `curl -u user:password` と、URL の userinfo (`postgres://user:password@host`)
-- `Authorization: Bearer|Basic|Token ...`・`X-API-Key:`・`PRIVATE-TOKEN:` のヘッダー
-- 形の決まったキー (GitHub・GitLab・AWS のアクセスキー ID・Anthropic・OpenAI・Stripe・Slack・Google の API キー・npm・JWT・秘密鍵のブロック)
+<!-- catalog:start -->
+| 種類 | 止める例 | 止めない例 |
+|---|---|---|
+| 秘密らしい名前の環境変数への代入 | `PGPASSWORD=hunter22 psql -h db` | `PGPASSWORD="$DB_PASSWORD" psql -h db` |
+| 同上 (`export` 付き) | `export MYSQL_PWD='hunter22' && mysql -u root` | `MAX_TOKENS=4096 python app.py` |
+| 同上 (`=` で続く値) | `kubectl create secret generic db --from-literal=password=hunter22` | `DB_PASSWORD_FILE=/run/secrets/db ./app` |
+| `mysql` 系の `-p<password>` | `mysql -u root -phunter22 shop` | `mysql -u root -p shop` |
+| `sshpass -p` | `sshpass -p 'hunter22' ssh deploy@host` | `sshpass -e ssh deploy@host` |
+| `redis-cli -a` | `redis-cli -a hunter22 ping` | `REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli ping` |
+| `docker login -p` | `docker login -u me -p hunter22 registry.example.com` | `echo "$REGISTRY_TOKEN" \| docker login -u me --password-stdin registry.example.com` |
+| `--password=` などのオプション | `pg_dump --password=hunter22 shop` | `some-cli --token-file ~/.token run` |
+| 同上 (空白で続く値) | `some-cli --api-key abcdef0123456789 run` | `API_TOKEN=xxx ./run` |
+| `curl -u user:password` | `curl -u admin:hunter22 https://example.com` | `curl -u "admin:$ADMIN_PASSWORD" https://example.com` |
+| URL の userinfo | `psql postgres://app:hunter22@db/shop` | `psql "postgres://app:${DB_PASSWORD}@db/shop"` |
+| `Authorization` のヘッダー | `curl -H 'Authorization: Bearer abcDEF123456' https://api.example.com` | `curl -H "Authorization: Bearer $API_TOKEN" https://api.example.com` |
+| `X-API-Key` などのヘッダー | `curl -H 'X-API-Key: 9d8c7b6a5f4e' https://api.example.com` | `curl -H "X-API-Key: $API_KEY" https://api.example.com` |
+<!-- catalog:end -->
+
+形の決まったキーは、変数の名前や位置に関係なく止めます。対象は GitHub (`ghp_` などで始まる 36 文字)・GitLab・AWS のアクセスキー ID (`AKIA` で始まる 20 文字)・Anthropic・OpenAI・Stripe・Slack・Google の API キー・npm・JWT・秘密鍵のブロックです。
+
+次の書き方は、秘密を含んでいても見逃します。どの位置にパスワードが来るかを、コマンドごとに覚えていないためです。
+
+<!-- missed:start -->
+- `htpasswd -b .htpasswd admin hunter22`
+- `openssl pkcs12 -in cert.p12 -passin pass:hunter22`
+- `echo hunter22 | sudo -S apt-get update`
+<!-- missed:end -->
 
 次のコマンドで試せます。
 

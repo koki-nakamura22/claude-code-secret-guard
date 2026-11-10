@@ -50,14 +50,35 @@ Run these two commands in Claude Code.
 
 ## What is detected
 
-It finds values written literally in the places below. References such as `$VAR`, `${VAR}` and `$(...)`, and placeholders such as `***`, `<password>` and `xxx`, are not reported.
+It finds values written literally in the places below. References such as `$VAR`, `${VAR}` and `$(...)`, and placeholders such as `***`, `<password>` and `xxx`, are not reported. Values of two characters or fewer are not blocked either.
 
-- Environment assignments with a secret-like name (`PGPASSWORD=`, `MYSQL_PWD=`, `DB_PASSWORD=`, `API_TOKEN=`, `export AWS_SECRET_ACCESS_KEY=`, `--from-literal=password=`)
-- `mysql` / `mysqldump` / `mariadb` `-p<password>`, `sshpass -p`, `redis-cli -a`, `docker login -p`
-- Options such as `--password=`, `--token`, `--api-key`, `--client-secret` (`--password-stdin` and `--token-file` are fine)
-- `curl -u user:password` and URL userinfo (`postgres://user:password@host`)
-- `Authorization: Bearer|Basic|Token ...`, `X-API-Key:`, `PRIVATE-TOKEN:` headers
-- Known key formats (GitHub, GitLab, AWS access key IDs, Anthropic, OpenAI, Stripe, Slack, Google API keys, npm, JWTs, private key blocks)
+<!-- catalog:start -->
+| kind | blocked | not blocked |
+|---|---|---|
+| environment assignment with a secret-like name | `PGPASSWORD=hunter22 psql -h db` | `PGPASSWORD="$DB_PASSWORD" psql -h db` |
+| same, with `export` | `export MYSQL_PWD='hunter22' && mysql -u root` | `MAX_TOKENS=4096 python app.py` |
+| same, after another `=` | `kubectl create secret generic db --from-literal=password=hunter22` | `DB_PASSWORD_FILE=/run/secrets/db ./app` |
+| `-p<password>` of MySQL clients | `mysql -u root -phunter22 shop` | `mysql -u root -p shop` |
+| `sshpass -p` | `sshpass -p 'hunter22' ssh deploy@host` | `sshpass -e ssh deploy@host` |
+| `redis-cli -a` | `redis-cli -a hunter22 ping` | `REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli ping` |
+| `docker login -p` | `docker login -u me -p hunter22 registry.example.com` | `echo "$REGISTRY_TOKEN" \| docker login -u me --password-stdin registry.example.com` |
+| options such as `--password=` | `pg_dump --password=hunter22 shop` | `some-cli --token-file ~/.token run` |
+| same, value after a space | `some-cli --api-key abcdef0123456789 run` | `API_TOKEN=xxx ./run` |
+| `curl -u user:password` | `curl -u admin:hunter22 https://example.com` | `curl -u "admin:$ADMIN_PASSWORD" https://example.com` |
+| URL userinfo | `psql postgres://app:hunter22@db/shop` | `psql "postgres://app:${DB_PASSWORD}@db/shop"` |
+| `Authorization` header | `curl -H 'Authorization: Bearer abcDEF123456' https://api.example.com` | `curl -H "Authorization: Bearer $API_TOKEN" https://api.example.com` |
+| `X-API-Key` and similar headers | `curl -H 'X-API-Key: 9d8c7b6a5f4e' https://api.example.com` | `curl -H "X-API-Key: $API_KEY" https://api.example.com` |
+<!-- catalog:end -->
+
+Keys with a known format are blocked wherever they appear: GitHub (36 characters after `ghp_` and similar prefixes), GitLab, AWS access key IDs (20 characters starting with `AKIA`), Anthropic, OpenAI, Stripe, Slack, Google API keys, npm, JWTs and private key blocks.
+
+The following are missed even though they contain a secret, because the detector does not know where each of these commands takes its password.
+
+<!-- missed:start -->
+- `htpasswd -b .htpasswd admin hunter22`
+- `openssl pkcs12 -in cert.p12 -passin pass:hunter22`
+- `echo hunter22 | sudo -S apt-get update`
+<!-- missed:end -->
 
 You can try it with this command.
 
