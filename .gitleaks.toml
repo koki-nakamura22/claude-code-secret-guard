@@ -1,0 +1,7 @@
+# The tests and the comparison script contain fake secrets on purpose.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Fake secrets used by tests and bench"
+paths = ['''^tests/''', '''^bench/''']
