@@ -10,7 +10,7 @@ from typing import IO
 
 from .checks import check_repository
 from .detect import find_secrets
-from .transcript import redact_transcript
+from .transcript import TypedSecret, redact_transcript
 
 DISABLE_ENV = "SECRET_GUARD_DISABLE"
 # Set from the plugin's userConfig option redact_transcripts ("/plugin" > manage). Unset means on.
@@ -70,20 +70,57 @@ def session_start(data: dict[str, object]) -> dict[str, object] | None:
     }
 
 
+_PREFIX = {"prompt": "> ", "bash-input": "! ", "bash-output": "output of !: "}
+
+
+def _typed_message(typed: list[TypedSecret], masked: bool) -> str:
+    """Tell the user about a secret they typed (or a `!` command printed), which no hook could stop."""
+    one = len(typed) == 1
+    them = "the password or token" if one else "the passwords or tokens"
+    by_hand = any(t.kind != "bash-output" for t in typed)
+    if by_hand:
+        headline = (
+            f"{'a password or token was' if one else f'{len(typed)} passwords or tokens were'} typed in this session"
+        )
+    else:
+        headline = f"{'a password or token' if one else 'passwords or tokens'} appeared in the output of a ! command"
+    shown = "\n".join(f"  {_PREFIX[t.kind]}{t.preview}" for t in typed)
+    where = "It was" if one else "They were"
+    reason = f"{where} sent to Claude"
+    if by_hand:
+        reason += ", and your input history (~/.claude/history.jsonl) keeps what you typed in plain text"
+    reason += ". " + (
+        "This session's log has been masked." if masked else "This session's log was left as it is (masking is off)."
+    )
+    steps = [f"Change {them}."]
+    if by_hand:
+        lines = "that line" if sum(t.kind != "bash-output" for t in typed) == 1 else "those lines"
+        steps.append(f"After closing Claude Code, delete {lines} from ~/.claude/history.jsonl.")
+    numbered = "\n".join(f"  {n}. {step}" for n, step in enumerate(steps, 1))
+    return f"secret-guard: {headline}\n{shown}\n{reason}\nWhat to do:\n{numbered}"
+
+
 def redact(data: dict[str, object]) -> dict[str, object] | None:
-    """Mask secrets in the session log after each turn (Stop), subagent (SubagentStop) and at SessionEnd."""
-    if os.environ.get(REDACT_OPTION_ENV, "").strip().lower() in ("false", "0"):
-        return None
-    key = "agent_transcript_path" if data.get("hook_event_name") == "SubagentStop" else "transcript_path"
+    """After each turn (Stop), subagent (SubagentStop) and at SessionEnd, mask secrets in the session log.
+
+    Commands run with `!` reach no hook before they run, so on Stop the user is told about a secret
+    they typed (or a `!` command printed) since the last turn.
+    """
+    write = os.environ.get(REDACT_OPTION_ENV, "").strip().lower() not in ("false", "0")
+    event = data.get("hook_event_name")
+    key = "agent_transcript_path" if event == "SubagentStop" else "transcript_path"
     path = data.get(key)
     if not isinstance(path, str) or not path:
         return None
     data_dir = os.environ.get("CLAUDE_PLUGIN_DATA")
     try:
-        redact_transcript(Path(path), Path(data_dir) if data_dir else None)
+        result = redact_transcript(Path(path), Path(data_dir) if data_dir else None, write=write)
     except OSError as e:
         print(f"secret-guard: cannot mask secrets in {path}: {e}", file=sys.stderr)
-    return None
+        return None
+    if event != "Stop" or not result.typed:
+        return None
+    return {"systemMessage": _typed_message(result.typed, write)}
 
 
 HANDLERS = {"pre-tool-use": pre_tool_use, "session-start": session_start, "redact": redact}

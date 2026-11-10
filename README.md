@@ -34,7 +34,7 @@ Secret scanners such as gitleaks and TruffleHog look for keys with a known shape
    - whether saved rules already contain secrets
 3. The CLI, the pre-commit hook and the GitHub Action stop the commit. They fail when `settings.local.json` is committed or when a committed `settings.json` contains a secret.
 4. `secret-guard fix` removes the permission rules that contain secrets from `settings.local.json`.
-5. `Stop`, `SubagentStop` and `SessionEnd` hooks mask secrets in the session log (`~/.claude/projects/<project>/<session>.jsonl`). A secret you type in a prompt or a `!` command, or that Claude repeats, is written there in plain text, and resuming the session sends it to the model again. Each secret is overwritten in place with `*` of the same length, so the log stays readable by Claude Code and `-c` / `--resume` keep working. Turn it off with the plugin option **Mask secrets in session logs** in `/plugin` (manage).
+5. `Stop`, `SubagentStop` and `SessionEnd` hooks mask secrets in the session log (`~/.claude/projects/<project>/<session>.jsonl`). A secret you type in a prompt or a `!` command, or that Claude repeats, is written there in plain text, and resuming the session sends it to the model again. Each secret is overwritten in place with `*` of the same length, so the log stays readable by Claude Code and `-c` / `--resume` keep working. Turn it off with the plugin option **Mask secrets in session logs** in `/plugin` (manage). After a turn in which you typed a secret, or a `!` command printed one, the `Stop` hook also tells you what to do: change it, and delete it from your input history.
 
 There are no dependencies. It needs only the Python 3.9+ standard library and git.
 
@@ -149,6 +149,7 @@ The cases were written by the author of this tool. Read this as a comparison of 
 - The `PreToolUse` hook covers the Bash tool only. Rules you add by hand or approve in an IDE are caught by the `SessionStart` check and the pre-commit hook instead. An IDE approval can write to the shared `.claude/settings.json`.
 - It does not rewrite `settings.local.json` on its own. Run `secret-guard fix` yourself.
 - Masking the session log changes the file only. Within the running session, Claude still has the secret and the log holds it in plain text until the end of the turn. Your input history (`~/.claude/history.jsonl`, used by the up arrow) is not rewritten, because every session shares that file.
+- Commands you run with `!` (bash mode) reach no hook before they run, so they cannot be blocked. The command and its output are sent to Claude. secret-guard tells you after the turn and masks the log.
 - Tested on macOS and Linux. The hooks call `python3`, which Windows may not have.
 
 ## License
