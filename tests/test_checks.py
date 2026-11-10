@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import pytest
 from conftest import git, write_settings
 
 from secret_guard.checks import check_repository
@@ -237,3 +238,42 @@ def test_unreadable_shared_settings_is_not_suggested_for_deletion(repo: Path) ->
         "secret-guard: cannot read .claude/settings.json (top level is not a JSON object)\n"
         "What to do: Fix the file by hand."
     ]
+
+
+@pytest.mark.parametrize(
+    ("settings", "expected"),
+    [
+        (
+            {"permissions": {"allow": [SECRET_RULE]}},
+            ["Remove the rule from the file.", "Change the password or token."],
+        ),
+        (
+            {"env": {"API_TOKEN": "abcdef123456", "DB_PASSWORD": "Pa55word"}},
+            [
+                "Remove the values from the file, and read them from an environment variable instead.",
+                "Change the password or token.",
+            ],
+        ),
+        (
+            {"permissions": {"allow": [SECRET_RULE]}, "env": {"API_TOKEN": "abcdef123456"}},
+            [
+                "Remove the rule from the file.",
+                "Remove the value from the file, and read it from an environment variable instead.",
+                "Change the password or token.",
+            ],
+        ),
+    ],
+    ids=["rule", "env-values", "rule-and-env"],
+)
+def test_steps_for_shared_settings_match_what_holds_the_secret(
+    repo: Path, settings: dict[str, object], expected: list[str]
+) -> None:
+    """A saved rule is removed, while an env value is moved to an environment variable; both may appear together."""
+    # Arrange
+    write_settings(repo / SHARED_SETTINGS, settings)
+
+    # Act
+    issues = check_repository(repo, "fix-it")
+
+    # Assert
+    assert re.findall(r"^  \d\. (.*)$", issues[0].message, re.MULTILINE) == expected

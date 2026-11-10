@@ -51,6 +51,19 @@ def _saved_secret(name: str, secrets: list[SecretRule]) -> str:
     return f"secret-guard: {what} saved in {name}\n{_rules(secrets)}"
 
 
+def _shared_steps(secrets: list[SecretRule]) -> list[str]:
+    rules = sum(not s.location.startswith("env.") for s in secrets)
+    values = len(secrets) - rules
+    steps: list[str] = []
+    if rules:
+        steps.append(f"Remove the {'rule' if rules == 1 else 'rules'} from the file.")
+    if values:
+        value, it = ("value", "it") if values == 1 else ("values", "them")
+        steps.append(f"Remove the {value} from the file, and read {it} from an environment variable instead.")
+    steps.append("Change the password or token.")
+    return steps
+
+
 def _unreadable(name: str, reason: str, *, local: bool) -> Issue:
     # settings.local.json holds only this machine's approvals, so starting over is safe; settings.json is shared.
     step = "Fix the file by hand, or delete it to start over." if local else "Fix the file by hand."
@@ -136,10 +149,7 @@ def check_repository(start: Path, fix_command: str) -> list[Issue]:
                 others.append(_unreadable(f"{prefix}{SHARED_SETTINGS}", report.error, local=False))
             if report.secrets:
                 reason = "This file is committed with the repository, so the password is on GitHub or soon will be."
-                steps = [
-                    "Remove it from the file, and read it from an environment variable instead.",
-                    "Change the password or token.",
-                ]
+                steps = _shared_steps(report.secrets)
                 message = f"{_saved_secret(f'{prefix}{SHARED_SETTINGS}', report.secrets)}\n{reason}\n{_steps(steps)}"
                 saved.append(Issue("error", message))
     return saved + others
