@@ -69,6 +69,9 @@ def test_literal_secret_is_found(command: str, rule: str, secret: str) -> None:
         "PASSWORD=*** ./run",
         "PASSWORD=ab ./run",
         'print(f"TOKEN={token}")',
+        'f.write(f"PGPASSWORD={SECRET}\\n")',
+        "f.write(f'PGPASSWORD={SECRET}\\t')",
+        'f.write(f"PGPASSWORD={SECRET}\\r\\n")',
         "",
     ],
 )
@@ -112,10 +115,11 @@ def test_regex_written_after_a_secret_name_is_not_found(command: str) -> None:
 
 @pytest.mark.parametrize(
     "secret",
-    ["[abc]def", "x[a-z]+", "ab{3}cd", "{abc", "\\Qx9", ".Hunter2"],
+    ["[abc]def", "x[a-z]+", "ab{3}cd", "{abc", "\\Qx9", ".Hunter2", "{abc}def", "{abc}\\nx", "{abc}\\q"],
 )
 def test_secret_with_regex_characters_is_still_found(secret: str) -> None:
-    """Passwords may contain [, {, \\ and .; only values that start like a regex pattern are let through."""
+    """Passwords may contain [, {, \\ and .; only values that start like a regex pattern are let through,
+    and only `{name}` alone or followed by escapes such as `\\n` counts as a placeholder."""
     # Arrange
     command = f"PASSWORD={secret} ./run"
 
