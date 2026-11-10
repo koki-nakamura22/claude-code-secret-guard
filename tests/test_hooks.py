@@ -299,6 +299,65 @@ def test_stop_notice_counts_several_secrets(tmp_path: Path) -> None:
     assert "  2. After closing Claude Code, delete those lines from ~/.claude/history.jsonl." in lines
 
 
+def test_stop_notice_counts_a_value_in_a_command_and_its_output_once(tmp_path: Path) -> None:
+    """`! echo PGPASSWORD=...` shows one value in the command and again in its output: it is one secret, typed."""
+    # Arrange
+    path = log_with(
+        tmp_path,
+        "<bash-input>echo PGPASSWORD=Xk7pQ2mZ9vLr</bash-input>",
+        "<bash-stdout>PGPASSWORD=Xk7pQ2mZ9vLr</bash-stdout><bash-stderr></bash-stderr>",
+    )
+
+    # Act
+    result = redact({"hook_event_name": "Stop", "transcript_path": str(path)})
+
+    # Assert
+    assert result is not None
+    lines = str(result["systemMessage"]).splitlines()
+    assert lines[:4] == [
+        "secret-guard: a password or token was typed in this session",
+        "  ! echo PGPASSWORD=***",
+        "  output of !: PGPASSWORD=***",
+        "It was sent to Claude, and your input history (~/.claude/history.jsonl) keeps what you typed in plain text."
+        " This session's log has been masked.",
+    ]
+    assert "  1. Change the password or token." in lines
+
+
+def test_stop_notice_counts_two_secrets_in_one_prompt_as_two(tmp_path: Path) -> None:
+    """Two values in one prompt are two secrets, even though they are shown on one line."""
+    # Arrange
+    path = log_with(tmp_path, "PGPASSWORD=Xk7pQ2mZ9vLr psql; mysql -u root -pHunter2xx")
+
+    # Act
+    result = redact({"hook_event_name": "Stop", "transcript_path": str(path)})
+
+    # Assert
+    assert result is not None
+    lines = str(result["systemMessage"]).splitlines()
+    assert lines[0] == "secret-guard: 2 passwords or tokens were typed in this session"
+    assert "  2. After closing Claude Code, delete that line from ~/.claude/history.jsonl." in lines
+
+
+def test_stop_notice_tells_typed_and_printed_secrets_apart(tmp_path: Path) -> None:
+    """When one value was typed and another only printed by a `!` command, the headline does not call both typed."""
+    # Arrange
+    path = log_with(
+        tmp_path,
+        "<bash-input>PGPASSWORD=Xk7pQ2mZ9vLr cat .env</bash-input>",
+        "<bash-stdout>DB_PASSWORD=Hunter2xx</bash-stdout><bash-stderr></bash-stderr>",
+    )
+
+    # Act
+    result = redact({"hook_event_name": "Stop", "transcript_path": str(path)})
+
+    # Assert
+    assert result is not None
+    lines = str(result["systemMessage"]).splitlines()
+    assert lines[0] == "secret-guard: 2 passwords or tokens were typed or printed by a ! command in this session"
+    assert "  2. After closing Claude Code, delete that line from ~/.claude/history.jsonl." in lines
+
+
 def test_stop_notice_says_the_log_was_left_when_masking_is_off(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """With masking off the user is still told, and the log is not changed."""
     # Arrange

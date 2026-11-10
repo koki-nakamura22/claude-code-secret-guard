@@ -75,15 +75,20 @@ _PREFIX = {"prompt": "> ", "bash-input": "! ", "bash-output": "output of !: "}
 
 def _typed_message(typed: list[TypedSecret], masked: bool) -> str:
     """Tell the user about a secret they typed (or a `!` command printed), which no hook could stop."""
-    one = len(typed) == 1
+    # Count values, not lines: `! echo PGPASSWORD=...` shows one value twice, in the command and its output.
+    values = {s for t in typed for s in t.secrets}
+    typed_values = {s for t in typed if t.kind != "bash-output" for s in t.secrets}
+    one = len(values) == 1
     them = "the password or token" if one else "the passwords or tokens"
-    by_hand = any(t.kind != "bash-output" for t in typed)
-    if by_hand:
+    by_hand = bool(typed_values)
+    if not by_hand:
+        headline = f"{'a password or token' if one else 'passwords or tokens'} appeared in the output of a ! command"
+    elif typed_values == values:
         headline = (
-            f"{'a password or token was' if one else f'{len(typed)} passwords or tokens were'} typed in this session"
+            f"{'a password or token was' if one else f'{len(values)} passwords or tokens were'} typed in this session"
         )
     else:
-        headline = f"{'a password or token' if one else 'passwords or tokens'} appeared in the output of a ! command"
+        headline = f"{len(values)} passwords or tokens were typed or printed by a ! command in this session"
     shown = "\n".join(f"  {_PREFIX[t.kind]}{t.preview}" for t in typed)
     where = "It was" if one else "They were"
     reason = f"{where} sent to Claude"
