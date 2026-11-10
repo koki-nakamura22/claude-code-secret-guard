@@ -1,0 +1,31 @@
+# --- Claude Code フロー情報 ---
+docs/
+/docs
+tasks.json
+.auto-implement/
+.auto-implement-on-docker/
+.claude/settings.local.json
+.serena/
+.steering/
+
+# --- OS / エディタノイズ ---
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
+*~
+*.log
+*.tmp
+*.bak
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
