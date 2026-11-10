@@ -1,5 +1,5 @@
 {
-  "description": "Block Bash commands that contain literal secrets, and warn when Claude Code settings can leak through git",
+  "description": "Block Bash commands that contain literal secrets, warn when Claude Code settings can leak through git, and mask secrets in session logs",
   "hooks": {
     "PreToolUse": [
       {
@@ -20,6 +20,41 @@
             "type": "command",
             "command": "python3 -I \"${CLAUDE_PLUGIN_ROOT}/bin/secret-guard\" hook session-start",
             "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -I \"${CLAUDE_PLUGIN_ROOT}/bin/secret-guard\" hook redact",
+            "async": true,
+            "timeout": 120
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -I \"${CLAUDE_PLUGIN_ROOT}/bin/secret-guard\" hook redact",
+            "async": true,
+            "timeout": 120
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -I \"${CLAUDE_PLUGIN_ROOT}/bin/secret-guard\" hook redact",
+            "timeout": 60
           }
         ]
       }

@@ -8,5 +8,13 @@
   "homepage": "https://github.com/koki-nakamura22/claude-code-secret-guard",
   "repository": "https://github.com/koki-nakamura22/claude-code-secret-guard",
   "license": "MIT",
-  "keywords": ["security", "secrets", "permissions", "hooks"]
+  "keywords": ["security", "secrets", "permissions", "hooks"],
+  "userConfig": {
+    "redact_transcripts": {
+      "type": "boolean",
+      "title": "Mask secrets in session logs",
+      "description": "After each turn, overwrite secrets in this session's log (~/.claude/projects/...) with *. Turn off to leave the logs untouched.",
+      "default": true
+    }
+  }
 }

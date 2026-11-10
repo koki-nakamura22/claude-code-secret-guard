@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from conftest import git, write_settings
 
-from secret_guard.hooks import pre_tool_use, run, session_start
+from secret_guard.hooks import pre_tool_use, redact, run, session_start
 from secret_guard.settings import LOCAL_SETTINGS
 
 
@@ -151,3 +151,85 @@ def test_run_does_nothing_when_disabled(monkeypatch: pytest.MonkeyPatch) -> None
 
     # Assert
     assert (code, stdout.getvalue()) == (0, "")
+
+
+def transcript(tmp_path: Path, name: str = "session.jsonl") -> Path:
+    path = tmp_path / name
+    path.write_text(json.dumps({"type": "user", "message": {"content": "PGPASSWORD=Xk7pQ2mZ9vLr psql"}}) + "\n")
+    return path
+
+
+@pytest.mark.parametrize(
+    ("event", "key"),
+    [("Stop", "transcript_path"), ("SessionEnd", "transcript_path"), ("SubagentStop", "agent_transcript_path")],
+)
+def test_redact_masks_the_log_named_by_each_event(tmp_path: Path, event: str, key: str) -> None:
+    """Stop and SessionEnd mask the session log; SubagentStop masks the subagent's own log."""
+    # Arrange
+    path = transcript(tmp_path)
+    other = transcript(tmp_path, "other.jsonl")
+    data: dict[str, object] = {"hook_event_name": event, "transcript_path": str(other), key: str(path)}
+
+    # Act
+    result = redact(data)
+
+    # Assert
+    assert result is None
+    assert "Xk7pQ2mZ9vLr" not in path.read_text()
+
+
+def test_redact_keeps_its_place_in_the_plugin_data_folder(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Inside the plugin, how far each log was read is kept in CLAUDE_PLUGIN_DATA."""
+    # Arrange
+    path = transcript(tmp_path)
+    monkeypatch.setenv("CLAUDE_PLUGIN_DATA", str(tmp_path / "data"))
+
+    # Act
+    redact({"hook_event_name": "Stop", "transcript_path": str(path)})
+
+    # Assert
+    assert (tmp_path / "data" / "transcript-offsets.json").is_file()
+
+
+@pytest.mark.parametrize("value", ["false", "0", "False"])
+def test_redact_does_nothing_when_turned_off(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, value: str) -> None:
+    """Turning the redact_transcripts option off leaves the logs untouched."""
+    # Arrange
+    path = transcript(tmp_path)
+    before = path.read_text()
+    monkeypatch.setenv("CLAUDE_PLUGIN_OPTION_REDACT_TRANSCRIPTS", value)
+
+    # Act
+    redact({"hook_event_name": "Stop", "transcript_path": str(path)})
+
+    # Assert
+    assert path.read_text() == before
+
+
+def test_redact_is_on_when_the_option_is_true(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The option's default value, true, masks the log."""
+    # Arrange
+    path = transcript(tmp_path)
+    monkeypatch.setenv("CLAUDE_PLUGIN_OPTION_REDACT_TRANSCRIPTS", "true")
+
+    # Act
+    redact({"hook_event_name": "Stop", "transcript_path": str(path)})
+
+    # Assert
+    assert "Xk7pQ2mZ9vLr" not in path.read_text()
+
+
+def test_redact_reports_a_missing_log_without_failing(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """A log that does not exist (e.g. transcript saving is off) is reported on stderr and the hook still succeeds."""
+    # Act
+    result = redact({"hook_event_name": "Stop", "transcript_path": str(tmp_path / "missing.jsonl")})
+
+    # Assert
+    assert result is None
+    assert "cannot mask secrets" in capsys.readouterr().err
+
+
+def test_redact_ignores_input_without_a_log_path() -> None:
+    """Without a path there is nothing to do."""
+    # Act & Assert
+    assert redact({"hook_event_name": "Stop"}) is None
