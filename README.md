@@ -58,6 +58,7 @@ It finds values written literally in the places below. References such as `$VAR`
 | environment assignment with a secret-like name | `PGPASSWORD=hunter22 psql -h db` | `PGPASSWORD="$DB_PASSWORD" psql -h db` |
 | same, with `export` | `export MYSQL_PWD='hunter22' && mysql -u root` | `MAX_TOKENS=4096 python app.py` |
 | same, after another `=` | `kubectl create secret generic db --from-literal=password=hunter22` | `DB_PASSWORD_FILE=/run/secrets/db ./app` |
+| same, inside quotes | `curl -d 'password=hunter22' https://example.com` | `grep -E 'TOKEN=[a-f0-9]{32}' app.log` |
 | `-p<password>` of MySQL clients | `mysql -u root -phunter22 shop` | `mysql -u root -p shop` |
 | `sshpass -p` | `sshpass -p 'hunter22' ssh deploy@host` | `sshpass -e ssh deploy@host` |
 | `redis-cli -a` | `redis-cli -a hunter22 ping` | `REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli ping` |

@@ -14,6 +14,10 @@ from secret_guard.detect import Finding, find_secrets, redact
         ('cd /srv && DB_PASSWORD="Pa55 word" ./migrate', "env-assignment", "Pa55 word"),
         ("password=hunter22", "env-assignment", "hunter22"),
         ("kubectl create secret generic db --from-literal=password=Sup3rSecret", "env-assignment", "Sup3rSecret"),
+        ("echo 'password=hunter22' > /tmp/x", "env-assignment", "hunter22"),
+        ("curl -d 'password=hunter22' https://example.com", "env-assignment", "hunter22"),
+        ('curl --data "token=hunter22" https://example.com', "env-assignment", "hunter22"),
+        ('docker run -e "POSTGRES_PASSWORD=hunter22" postgres', "env-assignment", "hunter22"),
         ("mysql -u root -pHunter2xx shop", "mysql-password", "Hunter2xx"),
         ("mysqldump -u root -p'Hunter2xx' shop", "mysql-password", "Hunter2xx"),
         ("sshpass -p 'Tr0ub4dor&3' ssh deploy@host", "sshpass", "Tr0ub4dor&3"),
@@ -64,6 +68,7 @@ def test_literal_secret_is_found(command: str, rule: str, secret: str) -> None:
         "API_TOKEN=your_token curl https://example.com",
         "PASSWORD=*** ./run",
         "PASSWORD=ab ./run",
+        'print(f"TOKEN={token}")',
         "",
     ],
 )
@@ -71,6 +76,54 @@ def test_reference_placeholder_or_harmless_text_is_not_found(command: str) -> No
     """Variables, placeholders, very short values and look-alike names are not reported, so work is not blocked."""
     # Act & Assert
     assert find_secrets(command) == []
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        'grep -rn "DB_PASSWORD=" . && echo "done"',
+        "grep -r 'token=' src && echo 'a b'",
+    ],
+)
+def test_quote_right_after_the_name_closes_the_string(command: str) -> None:
+    """In `"DB_PASSWORD=" ...` the quote after = ends the string, so what follows is not taken as the value."""
+    # Act & Assert
+    assert find_secrets(command) == []
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "pat=re.compile(r'abc|PGPASSWORD=[A-Za-z0-9]{6,}|xyz')",
+        "grep -E TOKEN=[a-f0-9]{32} app.log",
+        "grep -E 'TOKEN=[a-f0-9]{32}' app.log",
+        'grep -E "x|API_KEY=\\S+" .env.example',
+        "grep -E 'password=\\w{8,}' app.log",
+        "grep -E 'password=.+' app.log",
+        "grep -E 'password=[^\\s]+' app.log",
+        "grep -E 'TOKEN=[0-9a-f]*' app.log",
+    ],
+)
+def test_regex_written_after_a_secret_name_is_not_found(command: str) -> None:
+    """Commands that search for secrets put a pattern where the value goes; that pattern is not a secret."""
+    # Act & Assert
+    assert find_secrets(command) == []
+
+
+@pytest.mark.parametrize(
+    "secret",
+    ["[abc]def", "x[a-z]+", "ab{3}cd", "{abc", "\\Qx9", ".Hunter2"],
+)
+def test_secret_with_regex_characters_is_still_found(secret: str) -> None:
+    """Passwords may contain [, {, \\ and .; only values that start like a regex pattern are let through."""
+    # Arrange
+    command = f"PASSWORD={secret} ./run"
+
+    # Act
+    findings = find_secrets(command)
+
+    # Assert
+    assert [command[f.start : f.end] for f in findings] == [secret]
 
 
 def test_three_character_value_is_found() -> None:
