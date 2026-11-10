@@ -27,13 +27,13 @@ gitleaks や TruffleHog は形の決まったキー (`ghp_...`・`AKIA...`) を�
 
 ## 何をするか
 
-1. Bash の `PreToolUse` の hook で、秘密をそのまま書いたコマンドを、許可の確認が出る前に拒否します。確認が出ないので「don't ask again」も選べず、何も保存されません。Claude には環境変数で参照するよう伝えます (`$PGPASSWORD`・`mysql -p"$MYSQL_PASSWORD"`・`Authorization: Bearer $API_TOKEN`)。Claude Code 2.1.322 で試すと、確認の画面は出ず、ファイルも作られませんでした。Claude は `PGPASSWORD` が設定されているかを確かめたうえで、ユーザーに `export` するよう頼みました。
+1. Bash の `PreToolUse` の hook で、シークレットをそのまま書いたコマンドを、許可の確認が出る前に拒否します。確認が出ないので「don't ask again」も選べず、何も保存されません。Claude には環境変数で参照するよう伝えます (`$PGPASSWORD`・`mysql -p"$MYSQL_PASSWORD"`・`Authorization: Bearer $API_TOKEN`)。Claude Code 2.1.322 で試すと、確認の画面は出ず、ファイルも作られませんでした。Claude は `PGPASSWORD` が設定されているかを確かめたうえで、ユーザーに `export` するよう頼みました。
 2. `SessionStart` の hook で、セッションの開始時に次の 3 点を確かめ、問題があれば知らせます。worktree では、Claude Code がファイルを書く main checkout の側も確かめます。
    - `.claude/settings.local.json` が git で追跡されていないか
    - リポジトリの `.gitignore` で除外されているか
-   - 保存済みのルールに秘密が無いか
-3. CLI・pre-commit・GitHub Action で、コミットを止めます。`settings.local.json` がコミットされるとき、またはコミットされる `settings.json` に秘密があるときに失敗します。
-4. `secret-guard fix` で、`settings.local.json` から秘密を含む許可のルールを消します。
+   - 保存済みのルールにシークレットが無いか
+3. CLI・pre-commit・GitHub Action で、コミットを止めます。`settings.local.json` がコミットされるとき、またはコミットされる `settings.json` にシークレットがあるときに失敗します。
+4. `secret-guard fix` で、`settings.local.json` からシークレットを含む許可のルールを消します。
 
 依存はありません。Python 3.9 以上の標準ライブラリと git だけで動きます。
 
@@ -55,7 +55,7 @@ Claude Code で次の 2 つのコマンドを実行します。
 <!-- catalog:start -->
 | 種類 | 止める例 | 止めない例 |
 |---|---|---|
-| 秘密らしい名前の環境変数への代入 | `PGPASSWORD=hunter22 psql -h db` | `PGPASSWORD="$DB_PASSWORD" psql -h db` |
+| シークレットらしい名前の環境変数への代入 | `PGPASSWORD=hunter22 psql -h db` | `PGPASSWORD="$DB_PASSWORD" psql -h db` |
 | 同上 (`export` 付き) | `export MYSQL_PWD='hunter22' && mysql -u root` | `MAX_TOKENS=4096 python app.py` |
 | 同上 (`=` で続く値) | `kubectl create secret generic db --from-literal=password=hunter22` | `DB_PASSWORD_FILE=/run/secrets/db ./app` |
 | `mysql` 系の `-p<password>` | `mysql -u root -phunter22 shop` | `mysql -u root -p shop` |
@@ -72,7 +72,7 @@ Claude Code で次の 2 つのコマンドを実行します。
 
 形の決まったキーは、変数の名前や位置に関係なく止めます。対象は GitHub (`ghp_` などで始まる 36 文字)・GitLab・AWS のアクセスキー ID (`AKIA` で始まる 20 文字)・Anthropic・OpenAI・Stripe・Slack・Google の API キー・npm・JWT・秘密鍵のブロックです。
 
-次の書き方は、秘密を含んでいても見逃します。どの位置にパスワードが来るかを、コマンドごとに覚えていないためです。
+次の書き方は、シークレットを含んでいても見逃します。どの位置にパスワードが来るかを、コマンドごとに覚えていないためです。
 
 <!-- missed:start -->
 - `htpasswd -b .htpasswd admin hunter22`
@@ -94,10 +94,10 @@ python3 bin/secret-guard scan 'PGPASSWORD=hunter22 psql -h db'
 pipx install git+https://github.com/koki-nakamura22/claude-code-secret-guard@v0.1.0
 ```
 
-- `secret-guard check`: 今のリポジトリを確かめます。追跡されている・除外されていない `settings.local.json` や、`settings.json` の秘密があれば、終了コード 1 で終わります。`--strict` を付けると警告でも失敗します
+- `secret-guard check`: 今のリポジトリを確かめます。追跡されている・除外されていない `settings.local.json` や、`settings.json` のシークレットがあれば、終了コード 1 で終わります。`--strict` を付けると警告でも失敗します
 - `secret-guard check FILE...`: pre-commit の形です。これからコミットするファイルを確かめます
-- `secret-guard fix [FILE]`: `settings.local.json` から秘密を含むルールを消します。既定はこのリポジトリのファイルです
-- `secret-guard scan [TEXT...]`: 文字列か標準入力から見つけた秘密を、伏せて表示します
+- `secret-guard fix [FILE]`: `settings.local.json` からシークレットを含むルールを消します。既定はこのリポジトリのファイルです
+- `secret-guard scan [TEXT...]`: 文字列か標準入力から見つけたシークレットを、伏せて表示します
 
 ### pre-commit
 
@@ -118,7 +118,7 @@ repos:
 
 ## ほかのツールとの比較
 
-`python3 bench/run.py` は、偽の秘密 26 個と無害なコマンド 10 個をルールとして 1 つの `settings.local.json` に書き、それぞれのツールにかけます (gitleaks 8.30.1 の `dir`、TruffleHog 3.99.8 の `filesystem --no-verification`)。
+`python3 bench/run.py` は、偽のシークレット 26 個と無害なコマンド 10 個をルールとして 1 つの `settings.local.json` に書き、それぞれのツールにかけます (gitleaks 8.30.1 の `dir`、TruffleHog 3.99.8 の `filesystem --no-verification`)。
 
 | 種類 | 件数 | secret-guard | gitleaks | TruffleHog |
 |---|---|---|---|---|
@@ -135,7 +135,7 @@ repos:
 
 ## 既に push してしまったとき
 
-1. **まず秘密を無効にして発行し直します**。公開リポジトリに push したものは、写し取られたと考えてください
+1. **まずシークレットを無効にして発行し直します**。公開リポジトリに push したものは、写し取られたと考えてください
 2. `git rm --cached .claude/settings.local.json` で追跡をやめます
 3. リポジトリの `.gitignore` に `.claude/settings.local.json` を足してコミットします
 4. `secret-guard fix` でルールを消します
@@ -143,7 +143,7 @@ repos:
 
 ## 限界
 
-- 検出は文字の形で行います。任意の文字列がパスワードかどうかは分からないので、変わった位置の秘密は見逃し、まれに無害な値を止めます。Claude Code を動かす環境で `SECRET_GUARD_DISABLE=1` を設定すると、hook を止められます
+- 検出は文字の形で行います。任意の文字列がパスワードかどうかは分からないので、変わった位置のシークレットは見逃し、まれに無害な値を止めます。Claude Code を動かす環境で `SECRET_GUARD_DISABLE=1` を設定すると、hook を止められます
 - `PreToolUse` の hook は Bash のツールだけが対象です。手で足したルールや、IDE で承認したルールは、`SessionStart` の確認と pre-commit で拾います。IDE で承認したルールは、共有の `.claude/settings.json` に書かれることがあります
 - `settings.local.json` を勝手に書き換えません。`secret-guard fix` は自分で実行してください
 - 確かめたのは macOS と Linux です。hook は `python3` を呼ぶので、Windows では動かないことがあります
