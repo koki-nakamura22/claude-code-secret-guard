@@ -46,7 +46,7 @@ Claude Code で次の 2 つのコマンドを実行します。
 /plugin install secret-guard@claude-code-secret-guard
 ```
 
-`PATH` に `python3` (3.9 以上) が要ります。導入した後に Claude Code を再起動してください。
+`PATH` に `python3` (3.9 以上) が要ります。導入の直後から、同じセッションで効きます。効かないときは `/reload-plugins` を実行するか、Claude Code を再起動してください。
 
 ## 見つけるもの
 

@@ -46,7 +46,7 @@ Run these two commands in Claude Code.
 /plugin install secret-guard@claude-code-secret-guard
 ```
 
-`python3` (3.9 or later) must be on your `PATH`. Restart Claude Code after installing.
+`python3` (3.9 or later) must be on your `PATH`. The plugin works in the same session right after installing. If it does not, run `/reload-plugins` or restart Claude Code.
 
 ## What is detected
 
