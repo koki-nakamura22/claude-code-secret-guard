@@ -51,6 +51,12 @@ def _saved_secret(name: str, secrets: list[SecretRule]) -> str:
     return f"secret-guard: {what} saved in {name}\n{_rules(secrets)}"
 
 
+def _unreadable(name: str, reason: str, *, local: bool) -> Issue:
+    # settings.local.json holds only this machine's approvals, so starting over is safe; settings.json is shared.
+    step = "Fix the file by hand, or delete it to start over." if local else "Fix the file by hand."
+    return Issue("warning", f"secret-guard: cannot read {name} ({reason})\n{_steps([step])}")
+
+
 def _local_issue(
     name: str, git_c: str, tracked: bool, status: IgnoreStatus | None, secrets: list[SecretRule], fix_command: str
 ) -> Issue | None:
@@ -120,14 +126,14 @@ def check_repository(start: Path, fix_command: str) -> list[Issue]:
             status = ignore_status(root, LOCAL_SETTINGS) if in_git and not tracked else None
             report = scan_settings(local, include_env=False)
             if report.error:
-                others.append(Issue("warning", f"secret-guard: {report.error}"))
+                others.append(_unreadable(f"{prefix}{LOCAL_SETTINGS}", report.error, local=True))
             issue = _local_issue(f"{prefix}{LOCAL_SETTINGS}", git_c, tracked, status, report.secrets, fix_command)
             if issue is not None:
                 (saved if report.secrets else others).append(issue)
         if shared.is_file():
             report = scan_settings(shared, include_env=True)
             if report.error:
-                others.append(Issue("warning", f"secret-guard: {report.error}"))
+                others.append(_unreadable(f"{prefix}{SHARED_SETTINGS}", report.error, local=False))
             if report.secrets:
                 reason = "This file is committed with the repository, so the password is on GitHub or soon will be."
                 steps = [

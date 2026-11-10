@@ -30,7 +30,7 @@ class SecretRule:
 class FileReport:
     path: Path
     secrets: list[SecretRule] = field(default_factory=list)
-    error: str | None = None
+    error: str | None = None  # why the file could not be read, e.g. "not valid JSON: line 1 column 3"
 
 
 def _load(path: Path) -> dict[str, object]:
@@ -57,8 +57,14 @@ def scan_settings(path: Path, *, include_env: bool) -> FileReport:
     report = FileReport(path)
     try:
         data = _load(path)
-    except (OSError, ValueError) as e:
-        report.error = f"cannot read {path}: {e}"
+    except json.JSONDecodeError as e:
+        report.error = f"not valid JSON: line {e.lineno} column {e.colno}"
+        return report
+    except OSError as e:
+        report.error = e.strerror or str(e)
+        return report
+    except ValueError as e:
+        report.error = str(e)
         return report
     for key, rules in _permission_lists(data):
         for i, rule in enumerate(rules):

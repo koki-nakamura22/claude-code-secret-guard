@@ -32,7 +32,7 @@ def _check_files(paths: list[Path]) -> int:
             continue
         report = scan_settings(path, include_env=True)
         if report.error:
-            print(report.error)
+            print(f"{path}: cannot read: {report.error}")
             status = 1
         for s in report.secrets:
             print(f"{path}: {s.location} contains a secret: {s.redacted}")

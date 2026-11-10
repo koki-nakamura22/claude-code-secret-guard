@@ -203,3 +203,37 @@ def test_main_checkout_of_a_worktree_is_named_by_its_full_path(repo: Path, tmp_p
     root = repo.resolve()
     assert issues[0].message.splitlines()[0] == f"secret-guard: {root}/.claude/settings.local.json is tracked by git"
     assert f"`git -C {root} rm --cached .claude/settings.local.json`" in issues[0].message
+
+
+def test_unreadable_local_settings_says_where_and_what_to_do(repo: Path) -> None:
+    """A broken settings.local.json is named by its relative path with a short reason, and may simply be deleted."""
+    # Arrange
+    (repo / ".gitignore").write_text(".claude/settings.local.json\n")
+    (repo / LOCAL_SETTINGS).write_text("{ not json")
+
+    # Act
+    issues = check_repository(repo, "fix-it")
+
+    # Assert
+    assert [(i.severity, i.message) for i in issues] == [
+        (
+            "warning",
+            "secret-guard: cannot read .claude/settings.local.json (not valid JSON: line 1 column 3)\n"
+            "What to do: Fix the file by hand, or delete it to start over.",
+        )
+    ]
+
+
+def test_unreadable_shared_settings_is_not_suggested_for_deletion(repo: Path) -> None:
+    """settings.json is shared with the repository, so the user is told to fix it, not to delete it."""
+    # Arrange
+    (repo / SHARED_SETTINGS).write_text("[1, 2]")
+
+    # Act
+    issues = check_repository(repo, "fix-it")
+
+    # Assert
+    assert [i.message for i in issues] == [
+        "secret-guard: cannot read .claude/settings.json (top level is not a JSON object)\n"
+        "What to do: Fix the file by hand."
+    ]
