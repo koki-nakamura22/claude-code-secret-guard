@@ -251,7 +251,7 @@ def test_unreadable_shared_settings_is_not_suggested_for_deletion(repo: Path) ->
             {"env": {"API_TOKEN": "abcdef123456", "DB_PASSWORD": "Pa55word"}},
             [
                 "Remove the values from the file, and read them from an environment variable instead.",
-                "Change the password or token.",
+                "Change the passwords or tokens.",
             ],
         ),
         (
@@ -259,7 +259,7 @@ def test_unreadable_shared_settings_is_not_suggested_for_deletion(repo: Path) ->
             [
                 "Remove the rule from the file.",
                 "Remove the value from the file, and read it from an environment variable instead.",
-                "Change the password or token.",
+                "Change the passwords or tokens.",
             ],
         ),
     ],
@@ -277,3 +277,38 @@ def test_steps_for_shared_settings_match_what_holds_the_secret(
 
     # Assert
     assert re.findall(r"^  \d\. (.*)$", issues[0].message, re.MULTILINE) == expected
+
+
+@pytest.mark.parametrize(
+    ("rules", "expected"),
+    [
+        (
+            [SECRET_RULE],
+            [
+                "If it is ever committed, the password or token goes to GitHub.",
+                "Change the password or token. It was stored in plain text on this machine.",
+            ],
+        ),
+        (
+            [SECRET_RULE, SECRET_RULE.replace("Xk", "Ab")],
+            [
+                "If it is ever committed, the passwords or tokens go to GitHub.",
+                "Change the passwords or tokens. They were stored in plain text on this machine.",
+            ],
+        ),
+    ],
+    ids=["one", "two"],
+)
+def test_message_speaks_of_one_or_several_secrets_consistently(
+    repo: Path, rules: list[str], expected: list[str]
+) -> None:
+    """The body says "password or token" like the first line, in the singular or plural to match the count."""
+    # Arrange
+    (repo / ".gitignore").write_text(".claude/settings.local.json\n")
+    write_settings(repo / LOCAL_SETTINGS, {"permissions": {"allow": rules}})
+
+    # Act
+    message = check_repository(repo, "fix-it")[0].message
+
+    # Assert
+    assert [sentence for sentence in expected if sentence not in message] == []

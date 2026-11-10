@@ -51,6 +51,10 @@ def _saved_secret(name: str, secrets: list[SecretRule]) -> str:
     return f"secret-guard: {what} saved in {name}\n{_rules(secrets)}"
 
 
+def _them(count: int) -> str:
+    return "the password or token" if count == 1 else "the passwords or tokens"
+
+
 def _shared_steps(secrets: list[SecretRule]) -> list[str]:
     rules = sum(not s.location.startswith("env.") for s in secrets)
     values = len(secrets) - rules
@@ -60,7 +64,7 @@ def _shared_steps(secrets: list[SecretRule]) -> list[str]:
     if values:
         value, it = ("value", "it") if values == 1 else ("values", "them")
         steps.append(f"Remove the {value} from the file, and read {it} from an environment variable instead.")
-    steps.append("Change the password or token.")
+    steps.append(f"Change {_them(len(secrets))}.")
     return steps
 
 
@@ -75,14 +79,16 @@ def _local_issue(
 ) -> Issue | None:
     """Describe settings.local.json: the saved secrets first, then what keeps the file out of git."""
     gitignore_step = f"Add `{LOCAL_SETTINGS}` to .gitignore."
+    them = _them(len(secrets))
+    goes = "goes" if len(secrets) == 1 else "go"
     if tracked:
         severity = "error"
-        leak = "It is tracked by git, so your next push puts the password on GitHub."
+        leak = f"It is tracked by git, so your next push puts {them} on GitHub."
         risk = "It is tracked by git, so your next push puts it on GitHub."
         git_steps = [f"Stop tracking it: `git{git_c} rm --cached {LOCAL_SETTINGS}`", gitignore_step]
     elif status is not None and not status.ignored:
         severity = "error"
-        leak = "It is not ignored by git, so `git add .` would commit it and put the password on GitHub."
+        leak = f"It is not ignored by git, so `git add .` would commit it and put {them} on GitHub."
         risk = "It is not ignored by git, so `git add .` would commit it and put it on GitHub."
         git_steps = [gitignore_step]
     elif status is not None and not status.by_repository:
@@ -91,19 +97,19 @@ def _local_issue(
             f"Only {_home_relative(status.source or '')} on this machine keeps it out of git; "
             "other machines, containers and CI do not have that file."
         )
-        leak = f"If it is committed, the password goes to GitHub. {only_here}"
+        leak = f"If it is committed, {them} {goes} to GitHub. {only_here}"
         risk = f"{only_here} A commit from there would include it."
         git_steps = [gitignore_step]
     else:
         severity = "warning"
-        leak = "If it is ever committed, the password goes to GitHub."
+        leak = f"If it is ever committed, {them} {goes} to GitHub."
         risk = ""
         git_steps = []
 
     if secrets:
         steps = [
             f"Remove the saved {'rule' if len(secrets) == 1 else 'rules'}: `{fix_command}`",
-            "Change the password or token. It was stored in plain text on this machine.",
+            f"Change {them}. {'It was' if len(secrets) == 1 else 'They were'} stored in plain text on this machine.",
             *git_steps,
         ]
         return Issue(severity, f"{_saved_secret(name, secrets)}\n{_KEEPS_APPROVALS} {leak}\n{_steps(steps)}")
@@ -117,7 +123,7 @@ def _local_issue(
         headline = f"{name} is not ignored by git"
     else:
         headline = f"{name} is kept out of git only on this machine"
-    reason = f"{_KEEPS_APPROVALS} They can contain passwords. {risk}"
+    reason = f"{_KEEPS_APPROVALS} They can contain passwords or tokens. {risk}"
     return Issue(severity, f"secret-guard: {headline}\n{reason}\n{_steps(git_steps)}")
 
 
@@ -148,7 +154,11 @@ def check_repository(start: Path, fix_command: str) -> list[Issue]:
             if report.error:
                 others.append(_unreadable(f"{prefix}{SHARED_SETTINGS}", report.error, local=False))
             if report.secrets:
-                reason = "This file is committed with the repository, so the password is on GitHub or soon will be."
+                is_ = "is" if len(report.secrets) == 1 else "are"
+                reason = (
+                    f"This file is committed with the repository, so {_them(len(report.secrets))} {is_} on GitHub "
+                    "or soon will be."
+                )
                 steps = _shared_steps(report.secrets)
                 message = f"{_saved_secret(f'{prefix}{SHARED_SETTINGS}', report.secrets)}\n{reason}\n{_steps(steps)}"
                 saved.append(Issue("error", message))
