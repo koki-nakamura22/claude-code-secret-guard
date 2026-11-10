@@ -46,12 +46,18 @@ _PLACEHOLDER = re.compile(
         [*xX.\-_]+                      # ***, xxx, ...
       | <[^>]*>                         # <password>
       | \{\{[^}]*\}\}                   # {{ password }}
+      | \{[^{}]*\}                      # {password} of str.format and f-strings
       | \[[^\]]*\]                      # [password]
       | (?:your|my)[_-]?\w*             # your_password
       | (?:password|passwd|secret|token|changeme|redacted|dummy|example|placeholder|none|null|true|false)
     )$""",
     re.IGNORECASE | re.VERBOSE,
 )
+
+# Commands that search for secrets write a pattern where the value goes: TOKEN=[a-f0-9]{32}, API_KEY=\S+.
+# Only a value that starts with a character class or escape and a quantifier counts, because real
+# passwords can contain [, { and \ too.
+_REGEX_VALUE = re.compile(r"^(?:\[[^\]]+\]|\\[A-Za-z]|\.)(?:[*+?]|\{\d+(?:,\d*)?\})")
 
 _MIN_SECRET_LENGTH = 3
 
@@ -65,7 +71,7 @@ def _is_literal_secret(value: str) -> bool:
         return False
     if _is_reference(value) or value.startswith("-"):
         return False
-    return not _PLACEHOLDER.match(value)
+    return not _PLACEHOLDER.match(value) and not _REGEX_VALUE.match(value)
 
 
 def _word_span(m: re.Match[str]) -> tuple[str, int, int] | None:
@@ -88,7 +94,13 @@ _DETECTORS: tuple[_Detector, ...] = (
     _Detector(
         "env-assignment",
         "secret assigned to an environment variable",
-        re.compile(rf"(?:^|(?<=[\s;&|(=,?]))(?:export\s+)?(?P<name>{_SECRET_NAME})={_WORD}", re.IGNORECASE),
+        # After an opening quote ('password=...' of curl -d), a quote right after = closes the string
+        # (grep "DB_PASSWORD=" .), so the value there must be bare.
+        re.compile(
+            rf"(?:^|(?<=[\s;&|(=,?])|(?<=(?P<quote>['\"])))(?:export\s+)?(?P<name>{_SECRET_NAME})="
+            rf"(?(quote)(?!['\"])){_WORD}",
+            re.IGNORECASE,
+        ),
         name_group="name",
     ),
     _Detector(
