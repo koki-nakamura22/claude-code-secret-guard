@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from conftest import git, write_settings
@@ -101,4 +102,104 @@ def test_outside_git_still_checks_for_saved_secrets(tmp_path: Path) -> None:
 
     # Assert
     assert [i.severity for i in issues] == ["warning"]
-    assert "contain a secret" in issues[0].message
+    assert "saved in .claude/settings.local.json" in issues[0].message
+
+
+def test_secret_in_unignored_local_settings_is_one_error_with_every_step(repo: Path) -> None:
+    """A saved secret in a file git would commit is one error that lists removing, changing and ignoring, in order."""
+    # Arrange
+    write_settings(repo / LOCAL_SETTINGS, {"permissions": {"allow": [SECRET_RULE]}})
+
+    # Act
+    issues = check_repository(repo, "fix-it")
+
+    # Assert
+    assert [i.severity for i in issues] == ["error"]
+    steps = re.findall(r"^  \d\. (.*)$", issues[0].message, re.MULTILINE)
+    assert len(steps) == 3
+    assert "`fix-it`" in steps[0]
+    assert "Change the password" in steps[1]
+    assert ".gitignore" in steps[2]
+
+
+def test_first_line_says_what_is_saved_and_where(repo: Path) -> None:
+    """The first line alone tells the user that a secret is saved, and in which file."""
+    # Arrange
+    (repo / ".gitignore").write_text(".claude/settings.local.json\n")
+    write_settings(repo / LOCAL_SETTINGS, {"permissions": {"allow": [SECRET_RULE]}})
+
+    # Act
+    issues = check_repository(repo, "fix-it")
+
+    # Assert
+    assert issues[0].message.splitlines()[0] == (
+        "secret-guard: a password or token is saved in .claude/settings.local.json"
+    )
+
+
+def test_saved_secret_comes_before_warnings_about_git(repo: Path) -> None:
+    """A secret saved in the shared settings is reported before the warning that the local file is ignored only here."""
+    # Arrange
+    write_settings(repo / LOCAL_SETTINGS, {})
+    (repo / ".git" / "info").mkdir(exist_ok=True)
+    (repo / ".git" / "info" / "exclude").write_text(".claude/settings.local.json\n")
+    write_settings(repo / SHARED_SETTINGS, {"env": {"API_TOKEN": "abcdef123456"}})
+
+    # Act
+    issues = check_repository(repo, "fix-it")
+
+    # Assert
+    assert [i.message.splitlines()[0] for i in issues] == [
+        "secret-guard: a password or token is saved in .claude/settings.json",
+        "secret-guard: .claude/settings.local.json is kept out of git only on this machine",
+    ]
+
+
+def test_messages_name_files_relative_to_the_repository(repo: Path) -> None:
+    """Long absolute paths bury the point, so the repository's own files are named by their relative path."""
+    # Arrange
+    write_settings(repo / LOCAL_SETTINGS, {})
+    git(repo, "add", "-f", str(LOCAL_SETTINGS))
+
+    # Act
+    issues = check_repository(repo, "fix-it")
+
+    # Assert
+    assert str(repo) not in issues[0].message
+    assert "`git rm --cached .claude/settings.local.json`" in issues[0].message
+
+
+def test_global_excludes_file_is_shown_under_home(repo: Path) -> None:
+    """The global excludes file is shown as ~/..., the way people write it, instead of the full home path."""
+    # Arrange
+    write_settings(repo / LOCAL_SETTINGS, {})
+    excludes = Path.home() / ".config" / "git" / "ignore"
+    excludes.parent.mkdir(parents=True)
+    excludes.write_text("**/.claude/settings.local.json\n")
+
+    # Act
+    issues = check_repository(repo, "fix-it")
+
+    # Assert
+    assert [i.severity for i in issues] == ["warning"]
+    assert "Only ~/.config/git/ignore on this machine" in issues[0].message
+
+
+def test_main_checkout_of_a_worktree_is_named_by_its_full_path(repo: Path, tmp_path: Path) -> None:
+    """From a linked worktree, the main checkout's file is named in full, so it is not mistaken for the worktree's."""
+    # Arrange
+    (repo / "README").write_text("x")
+    git(repo, "add", "README")
+    git(repo, "commit", "-q", "-m", "init")
+    worktree = tmp_path / "wt"
+    git(repo, "worktree", "add", "-q", str(worktree))
+    write_settings(repo / LOCAL_SETTINGS, {})
+    git(repo, "add", "-f", str(LOCAL_SETTINGS))
+
+    # Act
+    issues = check_repository(worktree, "fix-it")
+
+    # Assert
+    root = repo.resolve()
+    assert issues[0].message.splitlines()[0] == f"secret-guard: {root}/.claude/settings.local.json is tracked by git"
+    assert f"`git -C {root} rm --cached .claude/settings.local.json`" in issues[0].message

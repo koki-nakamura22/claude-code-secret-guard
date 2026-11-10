@@ -44,13 +44,13 @@ def cmd_check(args: argparse.Namespace) -> int:
     if args.files:
         return _check_files([Path(f) for f in args.files])
     issues = check_repository(Path.cwd(), "secret-guard fix")
-    for issue in issues:
-        print(f"[{issue.severity}] {issue.message}")
     if not issues:
         print("secret-guard: no problems found")
+        return 0
+    print("\n\n".join(i.message for i in issues))
     if any(i.severity == "error" for i in issues):
         return 1
-    return 1 if args.strict and issues else 0
+    return 1 if args.strict else 0
 
 
 def cmd_fix(args: argparse.Namespace) -> int:

@@ -68,7 +68,7 @@ def test_session_start_warns_about_a_tracked_local_settings_file(repo: Path, mon
 
     # Assert
     assert result is not None
-    assert "is tracked by git" in str(result["systemMessage"])
+    assert str(result["systemMessage"]).startswith("secret-guard: .claude/settings.local.json is tracked by git")
     context = result["hookSpecificOutput"]
     assert isinstance(context, dict)
     assert "is tracked by git" in context["additionalContext"]
