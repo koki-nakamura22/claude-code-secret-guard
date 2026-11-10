@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from conftest import FAKE_GITHUB_TOKEN
 
-from secret_guard.transcript import mask_line, redact_file, redact_transcript
+from secret_guard.transcript import TypedSecret, mask_line, redact_file, redact_transcript, typed_secrets
 
 SECRET = "Xk7pQ2mZ9vLr"
 
@@ -123,10 +123,10 @@ def test_redact_file_masks_complete_lines_and_returns_where_to_continue(tmp_path
     path.write_bytes(complete + partial)
 
     # Act
-    offset, masked = redact_file(path)
+    result = redact_file(path)
 
     # Assert
-    assert (offset, masked) == (len(complete), 1)
+    assert (result.offset, result.masked) == (len(complete), 1)
     assert path.read_bytes() == mask_line(complete)[0] + partial
 
 
@@ -139,10 +139,10 @@ def test_redact_file_starts_at_the_given_offset(tmp_path: Path) -> None:
     path.write_bytes(first + second)
 
     # Act
-    offset, masked = redact_file(path, start=len(first))
+    result = redact_file(path, start=len(first))
 
     # Assert
-    assert (offset, masked) == (len(first) + len(second), 1)
+    assert (result.offset, result.masked) == (len(first) + len(second), 1)
     assert path.read_bytes().startswith(first)
 
 
@@ -153,10 +153,10 @@ def test_redact_file_starts_over_when_the_file_shrank(tmp_path: Path) -> None:
     path.write_bytes(user_line(f"PGPASSWORD={SECRET} psql"))
 
     # Act
-    _, masked = redact_file(path, start=10_000)
+    result = redact_file(path, start=10_000)
 
     # Assert
-    assert masked == 1
+    assert result.masked == 1
 
 
 def test_redact_transcript_remembers_how_far_it_read(tmp_path: Path) -> None:
@@ -170,10 +170,10 @@ def test_redact_transcript_remembers_how_far_it_read(tmp_path: Path) -> None:
         f.write(user_line(f"MYSQL_PWD={SECRET}9 mysql"))
 
     # Act
-    masked = redact_transcript(path, data_dir)
+    result = redact_transcript(path, data_dir)
 
     # Assert
-    assert masked == 1
+    assert result.masked == 1
     assert SECRET.encode() not in path.read_bytes()
     state = json.loads((data_dir / "transcript-offsets.json").read_text())
     assert state == {str(path): path.stat().st_size}
@@ -186,4 +186,71 @@ def test_redact_transcript_without_a_data_folder_reads_the_whole_file(tmp_path: 
     path.write_bytes(user_line(f"PGPASSWORD={SECRET} psql"))
 
     # Act & Assert
-    assert redact_transcript(path, None) == 1
+    assert redact_transcript(path, None).masked == 1
+
+
+@pytest.mark.parametrize(
+    ("content", "expected"),
+    [
+        (f"PGPASSWORD={SECRET} psql", [TypedSecret("prompt", "PGPASSWORD=*** psql")]),
+        (f"<bash-input>PGPASSWORD={SECRET} psql</bash-input>", [TypedSecret("bash-input", "PGPASSWORD=*** psql")]),
+        (
+            f"<bash-stdout>DB_PASSWORD={SECRET}</bash-stdout><bash-stderr></bash-stderr>",
+            [TypedSecret("bash-output", "DB_PASSWORD=***")],
+        ),
+        (f"first line\n  PGPASSWORD={SECRET}   psql  ", [TypedSecret("prompt", "PGPASSWORD=*** psql")]),
+    ],
+    ids=["prompt", "bash-input", "bash-output", "line-with-the-secret"],
+)
+def test_typed_secrets_finds_what_the_user_typed_or_a_bash_command_printed(
+    content: str, expected: list[TypedSecret]
+) -> None:
+    """Prompts and `!` input and output are reported with the secret masked, on one line."""
+    # Act & Assert
+    assert typed_secrets({"type": "user", "message": {"content": content}}) == expected
+
+
+@pytest.mark.parametrize(
+    "record",
+    [
+        {"type": "user", "message": {"content": [{"type": "tool_result", "content": f"PGPASSWORD={SECRET}"}]}},
+        {"type": "user", "isMeta": True, "message": {"content": f"PGPASSWORD={SECRET}"}},
+        {"type": "user", "message": {"content": f"<local-command-stdout>PGPASSWORD={SECRET}</local-command-stdout>"}},
+        {"type": "assistant", "message": {"content": f"PGPASSWORD={SECRET}"}},
+        {"type": "user", "message": {"content": 'PGPASSWORD="$DB_PASSWORD" psql'}},
+        "not a record",
+    ],
+    ids=["tool-result", "meta", "command-output", "assistant", "no-secret", "not-a-dict"],
+)
+def test_typed_secrets_ignores_what_the_user_did_not_type(record: object) -> None:
+    """Tool results, lines Claude Code writes itself and Claude's replies are not reported as typed."""
+    # Act & Assert
+    assert typed_secrets(record) == []
+
+
+def test_long_preview_is_shortened() -> None:
+    """A long prompt is cut so the notice stays short."""
+    # Arrange
+    content = f"PGPASSWORD={SECRET} " + "x" * 300
+
+    # Act
+    [found] = typed_secrets({"type": "user", "message": {"content": content}})
+
+    # Assert
+    assert len(found.preview) == 100
+    assert found.preview.endswith("\u2026")
+
+
+def test_scan_without_writing_reports_but_leaves_the_file(tmp_path: Path) -> None:
+    """With masking off, typed secrets are still found and the file is not opened for writing."""
+    # Arrange
+    path = tmp_path / "s.jsonl"
+    path.write_bytes(user_line(f"PGPASSWORD={SECRET} psql"))
+    before = path.read_bytes()
+
+    # Act
+    result = redact_file(path, write=False)
+
+    # Assert
+    assert (result.masked, len(result.typed)) == (0, 1)
+    assert path.read_bytes() == before

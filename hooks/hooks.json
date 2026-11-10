@@ -30,7 +30,6 @@
           {
             "type": "command",
             "command": "python3 -I \"${CLAUDE_PLUGIN_ROOT}/bin/secret-guard\" hook redact",
-            "async": true,
             "timeout": 120
           }
         ]
