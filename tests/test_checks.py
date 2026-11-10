@@ -19,7 +19,7 @@ def test_tracked_local_settings_is_an_error(repo: Path) -> None:
     git(repo, "add", "-f", str(LOCAL_SETTINGS))
 
     # Act
-    issues = check_repository(repo, "fix-it")
+    issues = check_repository(repo, "`fix-it`")
 
     # Assert
     assert [i.severity for i in issues] == ["error"]
@@ -32,7 +32,7 @@ def test_unignored_local_settings_is_an_error(repo: Path) -> None:
     write_settings(repo / LOCAL_SETTINGS, {})
 
     # Act
-    issues = check_repository(repo, "fix-it")
+    issues = check_repository(repo, "`fix-it`")
 
     # Assert
     assert [i.severity for i in issues] == ["error"]
@@ -47,7 +47,7 @@ def test_local_settings_ignored_only_on_this_machine_is_a_warning(repo: Path) ->
     (repo / ".git" / "info" / "exclude").write_text(".claude/settings.local.json\n")
 
     # Act
-    issues = check_repository(repo, "fix-it")
+    issues = check_repository(repo, "`fix-it`")
 
     # Assert
     assert [i.severity for i in issues] == ["warning"]
@@ -61,7 +61,7 @@ def test_secret_in_ignored_local_settings_is_a_warning_with_the_fix_command(repo
     write_settings(repo / LOCAL_SETTINGS, {"permissions": {"allow": [SECRET_RULE]}})
 
     # Act
-    issues = check_repository(repo, "fix-it")
+    issues = check_repository(repo, "`fix-it`")
 
     # Assert
     assert [i.severity for i in issues] == ["warning"]
@@ -75,7 +75,7 @@ def test_secret_in_shared_settings_is_an_error(repo: Path) -> None:
     write_settings(repo / SHARED_SETTINGS, {"env": {"API_TOKEN": "abcdef123456"}})
 
     # Act
-    issues = check_repository(repo, "fix-it")
+    issues = check_repository(repo, "`fix-it`")
 
     # Assert
     assert [i.severity for i in issues] == ["error"]
@@ -90,7 +90,7 @@ def test_safe_repository_has_no_issues(repo: Path) -> None:
     write_settings(repo / SHARED_SETTINGS, {"env": {"DEBUG": "1"}})
 
     # Act & Assert
-    assert check_repository(repo, "fix-it") == []
+    assert check_repository(repo, "`fix-it`") == []
 
 
 def test_outside_git_still_checks_for_saved_secrets(tmp_path: Path) -> None:
@@ -99,7 +99,7 @@ def test_outside_git_still_checks_for_saved_secrets(tmp_path: Path) -> None:
     write_settings(tmp_path / LOCAL_SETTINGS, {"permissions": {"allow": [SECRET_RULE]}})
 
     # Act
-    issues = check_repository(tmp_path, "fix-it")
+    issues = check_repository(tmp_path, "`fix-it`")
 
     # Assert
     assert [i.severity for i in issues] == ["warning"]
@@ -112,7 +112,7 @@ def test_secret_in_unignored_local_settings_is_one_error_with_every_step(repo: P
     write_settings(repo / LOCAL_SETTINGS, {"permissions": {"allow": [SECRET_RULE]}})
 
     # Act
-    issues = check_repository(repo, "fix-it")
+    issues = check_repository(repo, "`fix-it`")
 
     # Assert
     assert [i.severity for i in issues] == ["error"]
@@ -130,7 +130,7 @@ def test_first_line_says_what_is_saved_and_where(repo: Path) -> None:
     write_settings(repo / LOCAL_SETTINGS, {"permissions": {"allow": [SECRET_RULE]}})
 
     # Act
-    issues = check_repository(repo, "fix-it")
+    issues = check_repository(repo, "`fix-it`")
 
     # Assert
     assert issues[0].message.splitlines()[0] == (
@@ -147,7 +147,7 @@ def test_saved_secret_comes_before_warnings_about_git(repo: Path) -> None:
     write_settings(repo / SHARED_SETTINGS, {"env": {"API_TOKEN": "abcdef123456"}})
 
     # Act
-    issues = check_repository(repo, "fix-it")
+    issues = check_repository(repo, "`fix-it`")
 
     # Assert
     assert [i.message.splitlines()[0] for i in issues] == [
@@ -163,7 +163,7 @@ def test_messages_name_files_relative_to_the_repository(repo: Path) -> None:
     git(repo, "add", "-f", str(LOCAL_SETTINGS))
 
     # Act
-    issues = check_repository(repo, "fix-it")
+    issues = check_repository(repo, "`fix-it`")
 
     # Assert
     assert str(repo) not in issues[0].message
@@ -179,7 +179,7 @@ def test_global_excludes_file_is_shown_under_home(repo: Path) -> None:
     excludes.write_text("**/.claude/settings.local.json\n")
 
     # Act
-    issues = check_repository(repo, "fix-it")
+    issues = check_repository(repo, "`fix-it`")
 
     # Assert
     assert [i.severity for i in issues] == ["warning"]
@@ -198,7 +198,7 @@ def test_main_checkout_of_a_worktree_is_named_by_its_full_path(repo: Path, tmp_p
     git(repo, "add", "-f", str(LOCAL_SETTINGS))
 
     # Act
-    issues = check_repository(worktree, "fix-it")
+    issues = check_repository(worktree, "`fix-it`")
 
     # Assert
     root = repo.resolve()
@@ -213,7 +213,7 @@ def test_unreadable_local_settings_says_where_and_what_to_do(repo: Path) -> None
     (repo / LOCAL_SETTINGS).write_text("{ not json")
 
     # Act
-    issues = check_repository(repo, "fix-it")
+    issues = check_repository(repo, "`fix-it`")
 
     # Assert
     assert [(i.severity, i.message) for i in issues] == [
@@ -231,7 +231,7 @@ def test_unreadable_shared_settings_is_not_suggested_for_deletion(repo: Path) ->
     (repo / SHARED_SETTINGS).write_text("[1, 2]")
 
     # Act
-    issues = check_repository(repo, "fix-it")
+    issues = check_repository(repo, "`fix-it`")
 
     # Assert
     assert [i.message for i in issues] == [
@@ -273,7 +273,7 @@ def test_steps_for_shared_settings_match_what_holds_the_secret(
     write_settings(repo / SHARED_SETTINGS, settings)
 
     # Act
-    issues = check_repository(repo, "fix-it")
+    issues = check_repository(repo, "`fix-it`")
 
     # Assert
     assert re.findall(r"^  \d\. (.*)$", issues[0].message, re.MULTILINE) == expected
@@ -308,7 +308,7 @@ def test_message_speaks_of_one_or_several_secrets_consistently(
     write_settings(repo / LOCAL_SETTINGS, {"permissions": {"allow": rules}})
 
     # Act
-    message = check_repository(repo, "fix-it")[0].message
+    message = check_repository(repo, "`fix-it`")[0].message
 
     # Assert
     assert [sentence for sentence in expected if sentence not in message] == []
