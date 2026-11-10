@@ -112,6 +112,7 @@ The cases were written by the author of this tool, so read this as "what each to
 - Detection is pattern-based. It cannot know that an arbitrary string is a password, so a secret in an unusual position is missed, and a harmless value can occasionally be blocked. Set `SECRET_GUARD_DISABLE=1` in the environment Claude Code runs in to turn the hooks off.
 - The `PreToolUse` hook covers the Bash tool only. Rules you add by hand or approve in an IDE (which can write to the shared `.claude/settings.json`) are caught by the `SessionStart` check and the pre-commit hook instead.
 - It does not rewrite `settings.local.json` on its own. Run `secret-guard fix` yourself.
+- Tested on macOS and Linux. The hooks call `python3`, which Windows may not have.
 
 ## License
 

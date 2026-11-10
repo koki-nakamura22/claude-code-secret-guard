@@ -112,6 +112,7 @@ repos:
 - 検出は文字の形で行います。任意の文字列がパスワードかどうかは分からないので、変わった位置の秘密は見逃し、まれに無害な値を止めます。Claude Code を動かす環境で `SECRET_GUARD_DISABLE=1` を設定すると hook を止められます
 - `PreToolUse` の hook は Bash のツールだけが対象です。手で足したルールや、IDE で承認したルール (共有の `.claude/settings.json` に書かれることがある) は、`SessionStart` の確認と pre-commit で拾います
 - `settings.local.json` を勝手に書き換えません。`secret-guard fix` は自分で実行してください
+- 確かめたのは macOS と Linux です。hook は `python3` を呼ぶので、Windows では動かないことがあります
 
 ## ライセンス
 
