@@ -93,7 +93,7 @@ python3 bin/secret-guard scan 'PGPASSWORD=hunter22 psql -h db'
 プラグインは `bin/secret-guard` を呼びます。このスクリプトは、clone したままインストールせずに動きます。pipx でインストールすることもできます。
 
 ```sh
-pipx install git+https://github.com/koki-nakamura22/claude-code-secret-guard@v0.2.0
+pipx install git+https://github.com/koki-nakamura22/claude-code-secret-guard@v0.2.1
 ```
 
 - `secret-guard check`: 今のリポジトリを確かめます。追跡されている・除外されていない `settings.local.json` や、`settings.json` のシークレットがあれば、終了コード 1 で終わります。`--strict` を付けると警告でも失敗します
@@ -106,7 +106,7 @@ pipx install git+https://github.com/koki-nakamura22/claude-code-secret-guard@v0.
 ```yaml
 repos:
   - repo: https://github.com/koki-nakamura22/claude-code-secret-guard
-    rev: v0.2.0
+    rev: v0.2.1
     hooks:
       - id: claude-settings
 ```
@@ -115,7 +115,7 @@ repos:
 
 ```yaml
 - uses: actions/checkout@v7.0.1
-- uses: koki-nakamura22/claude-code-secret-guard@v0.2.0
+- uses: koki-nakamura22/claude-code-secret-guard@v0.2.1
 ```
 
 ## ほかのツールとの比較

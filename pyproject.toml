@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "claude-code-secret-guard"
-version = "0.2.0"
+version = "0.2.1"
 description = "Keep secrets out of Claude Code permission rules and out of git."
 readme = "README.md"
 license = "MIT"
