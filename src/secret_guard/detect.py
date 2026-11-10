@@ -46,7 +46,7 @@ _PLACEHOLDER = re.compile(
         [*xX.\-_]+                      # ***, xxx, ...
       | <[^>]*>                         # <password>
       | \{\{[^}]*\}\}                   # {{ password }}
-      | \{[^{}]*\}                      # {password} of str.format and f-strings
+      | \{[^{}]*\}(?:\\[nrt])*          # {password} of str.format and f-strings, maybe before "\n"
       | \[[^\]]*\]                      # [password]
       | (?:your|my)[_-]?\w*             # your_password
       | (?:password|passwd|secret|token|changeme|redacted|dummy|example|placeholder|none|null|true|false)
