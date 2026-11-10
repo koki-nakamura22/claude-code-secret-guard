@@ -101,6 +101,37 @@ def test_secret_repeated_elsewhere_in_the_line_is_masked_too() -> None:
     assert SECRET.encode() not in masked
 
 
+@pytest.mark.parametrize(
+    "command",
+    [f"mysql -u root -p{SECRET} shop", f"sshpass -p{SECRET} ssh host"],
+    ids=["mysql", "sshpass"],
+)
+def test_secret_written_right_after_dash_p_is_masked(command: str) -> None:
+    """`-p<value>` puts the value right after the option letter; it is still the secret, not part of a word."""
+    # Arrange
+    line = user_line(command)
+
+    # Act
+    masked, count = mask_line(line)
+
+    # Assert
+    assert count == 1
+    assert SECRET.encode() not in masked
+
+
+def test_secret_after_dash_p_inside_a_longer_word_is_not_masked() -> None:
+    """`-p` only lets the start through: a short secret followed by more letters is still part of another word."""
+    # Arrange
+    line = user_line("mysql -u root -papp shop; see -papplication")
+
+    # Act
+    masked, _ = mask_line(line)
+
+    # Assert
+    assert b"-p*** shop" in masked
+    assert b"-papplication" in masked
+
+
 def test_secret_inside_a_longer_word_is_not_masked() -> None:
     """A short secret is not masked inside an unrelated longer word, so the rest of the log stays readable."""
     # Arrange

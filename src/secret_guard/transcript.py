@@ -79,7 +79,9 @@ def _mask(line: bytes, form: bytes) -> tuple[bytes, int]:
     start = line.find(form)
     while start != -1:
         end = start + len(form)
-        glued_before = start > 0 and _is_word_byte(form[0]) and _is_word_byte(line[start - 1])
+        # mysql -p<value> and sshpass -p<value> write the value right after the option letter.
+        after_dash_p = line[max(0, start - 2) : start] == b"-p"
+        glued_before = start > 0 and _is_word_byte(form[0]) and _is_word_byte(line[start - 1]) and not after_dash_p
         glued_after = end < len(line) and _is_word_byte(form[-1]) and _is_word_byte(line[end])
         if not glued_before and not glued_after:
             line = line[:start] + b"*" * len(form) + line[end:]
