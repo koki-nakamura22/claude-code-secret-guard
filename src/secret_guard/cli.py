@@ -43,7 +43,7 @@ def _check_files(paths: list[Path]) -> int:
 def cmd_check(args: argparse.Namespace) -> int:
     if args.files:
         return _check_files([Path(f) for f in args.files])
-    issues = check_repository(Path.cwd(), "secret-guard fix")
+    issues = check_repository(Path.cwd(), "`secret-guard fix`")
     if not issues:
         print("secret-guard: no problems found")
         return 0

@@ -75,7 +75,7 @@ def _unreadable(name: str, reason: str, *, local: bool) -> Issue:
 
 
 def _local_issue(
-    name: str, git_c: str, tracked: bool, status: IgnoreStatus | None, secrets: list[SecretRule], fix_command: str
+    name: str, git_c: str, tracked: bool, status: IgnoreStatus | None, secrets: list[SecretRule], how_to_fix: str
 ) -> Issue | None:
     """Describe settings.local.json: the saved secrets first, then what keeps the file out of git."""
     gitignore_step = f"Add `{LOCAL_SETTINGS}` to .gitignore."
@@ -108,7 +108,7 @@ def _local_issue(
 
     if secrets:
         steps = [
-            f"Remove the saved {'rule' if len(secrets) == 1 else 'rules'}: `{fix_command}`",
+            f"Remove the saved {'rule' if len(secrets) == 1 else 'rules'}: {how_to_fix}",
             f"Change {them}. {'It was' if len(secrets) == 1 else 'They were'} stored in plain text on this machine.",
             *git_steps,
         ]
@@ -127,8 +127,11 @@ def _local_issue(
     return Issue(severity, f"secret-guard: {headline}\n{reason}\n{_steps(git_steps)}")
 
 
-def check_repository(start: Path, fix_command: str) -> list[Issue]:
-    """Check the settings files of the repository that contains ``start``."""
+def check_repository(start: Path, how_to_fix: str) -> list[Issue]:
+    """Check the settings files of the repository that contains ``start``.
+
+    ``how_to_fix`` tells how to run ``secret-guard fix`` where the message is shown.
+    """
     # The saved secrets matter most, so they come before the warnings about git.
     saved: list[Issue] = []
     others: list[Issue] = []
@@ -146,7 +149,7 @@ def check_repository(start: Path, fix_command: str) -> list[Issue]:
             report = scan_settings(local, include_env=False)
             if report.error:
                 others.append(_unreadable(f"{prefix}{LOCAL_SETTINGS}", report.error, local=True))
-            issue = _local_issue(f"{prefix}{LOCAL_SETTINGS}", git_c, tracked, status, report.secrets, fix_command)
+            issue = _local_issue(f"{prefix}{LOCAL_SETTINGS}", git_c, tracked, status, report.secrets, how_to_fix)
             if issue is not None:
                 (saved if report.secrets else others).append(issue)
         if shared.is_file():

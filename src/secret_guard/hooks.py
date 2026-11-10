@@ -47,17 +47,14 @@ def pre_tool_use(data: dict[str, object]) -> dict[str, object] | None:
     }
 
 
-def _fix_command() -> str:
-    root = os.environ.get("CLAUDE_PLUGIN_ROOT")
-    if root:
-        return f'python3 "{Path(root) / "bin" / "secret-guard"}" fix'
-    return "secret-guard fix"
+# Claude Code puts the bin/ of each plugin on the PATH of its shell, so the short name works there.
+_HOW_TO_FIX = "type `! secret-guard fix` in Claude Code, or ask Claude to run it"
 
 
 def session_start(data: dict[str, object]) -> dict[str, object] | None:
     cwd = data.get("cwd")
     project = os.environ.get("CLAUDE_PROJECT_DIR") or (cwd if isinstance(cwd, str) else None) or os.getcwd()
-    issues = check_repository(Path(project), _fix_command())
+    issues = check_repository(Path(project), _HOW_TO_FIX)
     if not issues:
         return None
     text = "\n\n".join(i.message for i in issues)

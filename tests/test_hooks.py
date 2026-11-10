@@ -84,8 +84,8 @@ def test_session_start_is_silent_for_a_safe_repository(repo: Path) -> None:
     assert session_start({"cwd": str(repo)}) is None
 
 
-def test_session_start_suggests_the_plugin_fix_command(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Inside the plugin, the suggested fix command points at the plugin's own script."""
+def test_session_start_suggests_the_short_fix_command(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Claude Code puts the plugin's bin/ on its PATH, so the fix is `! secret-guard fix`, not a long path."""
     # Arrange
     (repo / ".gitignore").write_text(".claude/settings.local.json\n")
     write_settings(repo / LOCAL_SETTINGS, {"permissions": {"allow": ["Bash(PGPASSWORD=Xk7pQ2mZ9vLr psql:*)"]}})
@@ -96,7 +96,9 @@ def test_session_start_suggests_the_plugin_fix_command(repo: Path, monkeypatch: 
 
     # Assert
     assert result is not None
-    assert 'python3 "/plugins/secret-guard/bin/secret-guard" fix' in str(result["systemMessage"])
+    message = str(result["systemMessage"])
+    assert "  1. Remove the saved rule: type `! secret-guard fix` in Claude Code, or ask Claude to run it" in message
+    assert "/plugins/secret-guard" not in message
 
 
 def test_run_writes_hook_output_as_json() -> None:

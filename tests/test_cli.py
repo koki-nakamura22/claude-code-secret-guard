@@ -87,6 +87,22 @@ def test_check_repository_passes_warnings_unless_strict(repo: Path, monkeypatch:
     assert (default, strict) == (0, 1)
 
 
+def test_check_repository_suggests_the_fix_command_for_a_terminal(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """check runs in the user's terminal, so the fix is offered as the plain `secret-guard fix` command."""
+    # Arrange
+    (repo / ".gitignore").write_text(".claude/settings.local.json\n")
+    write_settings(repo / LOCAL_SETTINGS, {"permissions": {"allow": [SECRET_RULE]}})
+    monkeypatch.chdir(repo)
+
+    # Act
+    main(["check"])
+
+    # Assert
+    assert "  1. Remove the saved rule: `secret-guard fix`\n" in capsys.readouterr().out
+
+
 def test_check_repository_reports_success(
     repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
