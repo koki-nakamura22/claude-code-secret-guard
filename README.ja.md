@@ -11,17 +11,21 @@ Claude Code の許可の確認で **「Yes, and don't ask again」** を選ん�
 
 ## 何が問題か
 
-Bash のコマンドを「Yes, and don't ask again」で承認すると、Claude Code はそれを許可のルールとして `.claude/settings.local.json` に保存します。コマンドにパスワードが入っていれば、ルールにも残ります。
+Bash のコマンドを「Yes, and don't ask again」で承認すると、Claude Code はそれを許可のルールとして `.claude/settings.local.json` に保存します。Claude Code 2.1.322 で、何が保存されるかを確かめました。
 
-```json
-{ "permissions": { "allow": ["Bash(PGPASSWORD=hunter2 psql -h db.internal -U app:*)"] } }
-```
+| 承認したコマンド | 保存されたルール |
+|---|---|
+| `PGPASSWORD=hunter22 psql -h db -U app -c 'select 1'` | `Bash(PGPASSWORD=hunter22 psql *)` |
+| `cd /tmp && PGPASSWORD=hunter22 psql -h db -c 'select 1' && echo done` | `Bash(PGPASSWORD=hunter22 psql -h db -c 'select 1')` |
+| `mysql -u root -phunter22 shop` | `Bash(mysql *)` |
+
+単独のコマンドは「先頭の部分 + ` *`」に丸めて保存され、先頭の `PGPASSWORD=...` はその「先頭の部分」に入ります。複合コマンドのサブコマンドは、引数まで全部そのまま保存されます。
 
 Claude Code はこのファイルを git から外すために **グローバルの** 除外ファイルへ追記しますが、それは自分でファイルを作ったときだけです。別の PC・コンテナ・CI、手で作ったファイル、既に git で追跡しているファイルには効きません。gitleaks や TruffleHog は形の決まったキー (`ghp_...`・`AKIA...`) を探すので、`PGPASSWORD=` や `mysql -p` の後ろの普通のパスワードはたいてい見逃します。
 
 ## 何をするか
 
-1. **防ぐ** (Bash の `PreToolUse` の hook): 秘密をそのまま書いたコマンドを、許可の確認が出る前に拒否します。確認が出ないので「don't ask again」も選べず、何も保存されません。Claude には環境変数で参照するよう伝えます (`$PGPASSWORD`・`mysql -p"$MYSQL_PASSWORD"`・`Authorization: Bearer $API_TOKEN`)。
+1. **防ぐ** (Bash の `PreToolUse` の hook): 秘密をそのまま書いたコマンドを、許可の確認が出る前に拒否します。確認が出ないので「don't ask again」も選べず、何も保存されません。Claude には環境変数で参照するよう伝えます (`$PGPASSWORD`・`mysql -p"$MYSQL_PASSWORD"`・`Authorization: Bearer $API_TOKEN`)。Claude Code 2.1.322 で試すと、確認の画面は出ず、ファイルも作られず、Claude は `PGPASSWORD` が設定されているかを確かめたうえで、ユーザーに `export` するよう頼みました。
 2. **気づかせる** (`SessionStart` の hook): セッションの開始時に、`.claude/settings.local.json` が git で追跡されていないか、リポジトリの `.gitignore` で除外されているか、保存済みのルールに秘密が無いかを確かめます。worktree では、Claude Code がファイルを書く main checkout の側も確かめます。
 3. **コミットを止める** (CLI・pre-commit・GitHub Action): `settings.local.json` がコミットされる、またはコミットされる `settings.json` に秘密があると失敗します。
 4. **片付ける** (`secret-guard fix`): `settings.local.json` から秘密を含む許可のルールを消します。

@@ -11,17 +11,21 @@ A Claude Code plugin that stops passwords from being saved by **"Yes, and don't 
 
 ## The problem
 
-When you approve a Bash command with "Yes, and don't ask again", Claude Code saves it as a permission rule in `.claude/settings.local.json`. If the command contained a password, so does the rule:
+When you approve a Bash command with "Yes, and don't ask again", Claude Code saves it as a permission rule in `.claude/settings.local.json`. We checked what is saved with Claude Code 2.1.322:
 
-```json
-{ "permissions": { "allow": ["Bash(PGPASSWORD=hunter2 psql -h db.internal -U app:*)"] } }
-```
+| approved command | saved rule |
+|---|---|
+| `PGPASSWORD=hunter22 psql -h db -U app -c 'select 1'` | `Bash(PGPASSWORD=hunter22 psql *)` |
+| `cd /tmp && PGPASSWORD=hunter22 psql -h db -c 'select 1' && echo done` | `Bash(PGPASSWORD=hunter22 psql -h db -c 'select 1')` |
+| `mysql -u root -phunter22 shop` | `Bash(mysql *)` |
+
+A single command is shortened to its beginning plus ` *`, and a leading `PGPASSWORD=...` is part of that beginning. A subcommand of a compound command is saved in full, arguments and all.
 
 Claude Code keeps this file out of git by adding it to your **global** git excludes, and only when it creates the file itself. That does not help on another machine, in a container or CI, when the file was created by hand, or once the file is already tracked. Secret scanners such as gitleaks and TruffleHog look for keys with a known shape (`ghp_...`, `AKIA...`) and usually miss a plain password after `PGPASSWORD=` or `mysql -p`.
 
 ## What it does
 
-1. **Prevents** (`PreToolUse` hook on Bash): a command with a literal secret is denied before the permission prompt appears, so there is nothing to "don't ask again" and nothing is saved. Claude is told to reference an environment variable instead (`$PGPASSWORD`, `mysql -p"$MYSQL_PASSWORD"`, `Authorization: Bearer $API_TOKEN`).
+1. **Prevents** (`PreToolUse` hook on Bash): a command with a literal secret is denied before the permission prompt appears, so there is nothing to "don't ask again" and nothing is saved. Claude is told to reference an environment variable instead (`$PGPASSWORD`, `mysql -p"$MYSQL_PASSWORD"`, `Authorization: Bearer $API_TOKEN`). In our test with Claude Code 2.1.322, no prompt appeared, no file was written, and Claude checked whether `PGPASSWORD` was set and then asked the user to export it.
 2. **Warns** (`SessionStart` hook): at the start of a session it checks whether `.claude/settings.local.json` is tracked by git, whether the repository's own `.gitignore` excludes it, and whether saved rules already contain secrets. Linked worktrees are covered: the main checkout, where Claude Code writes the file, is checked too.
 3. **Stops the commit** (CLI, pre-commit, GitHub Action): fails when `settings.local.json` is committed or a committed `settings.json` contains a secret.
 4. **Cleans up** (`secret-guard fix`): removes the permission rules that contain secrets from `settings.local.json`.
