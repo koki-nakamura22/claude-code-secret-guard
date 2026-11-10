@@ -60,8 +60,7 @@ def session_start(data: dict[str, object]) -> dict[str, object] | None:
     issues = check_repository(Path(project), _fix_command())
     if not issues:
         return None
-    body = "\n".join(f"[{i.severity}] {i.message}" for i in issues)
-    text = f"secret-guard found a risk of leaking secrets through Claude Code settings:\n{body}"
+    text = "\n\n".join(i.message for i in issues)
     return {
         "systemMessage": text,
         "hookSpecificOutput": {
