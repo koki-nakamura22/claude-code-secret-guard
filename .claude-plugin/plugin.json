@@ -1,0 +1,12 @@
+{
+  "name": "secret-guard",
+  "version": "0.1.0",
+  "description": "Stop passwords in Bash commands from being saved to .claude/settings.local.json by \"Yes, and don't ask again\", and warn when that file can leak through git.",
+  "author": {
+    "name": "Koki NAKAMURA"
+  },
+  "homepage": "https://github.com/koki-nakamura22/claude-code-secret-guard",
+  "repository": "https://github.com/koki-nakamura22/claude-code-secret-guard",
+  "license": "MIT",
+  "keywords": ["security", "secrets", "permissions", "hooks"]
+}

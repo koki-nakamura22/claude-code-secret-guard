@@ -1,0 +1,28 @@
+{
+  "description": "Block Bash commands that contain literal secrets, and warn when Claude Code settings can leak through git",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -I \"${CLAUDE_PLUGIN_ROOT}/bin/secret-guard\" hook pre-tool-use",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -I \"${CLAUDE_PLUGIN_ROOT}/bin/secret-guard\" hook session-start",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
