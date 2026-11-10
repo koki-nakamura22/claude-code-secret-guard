@@ -93,7 +93,7 @@ python3 bin/secret-guard scan 'PGPASSWORD=hunter22 psql -h db'
 The plugin calls `bin/secret-guard`, which runs from a checkout without installing. You can also install it with pipx.
 
 ```sh
-pipx install git+https://github.com/koki-nakamura22/claude-code-secret-guard@v0.1.0
+pipx install git+https://github.com/koki-nakamura22/claude-code-secret-guard@v0.2.0
 ```
 
 - `secret-guard check` — check the current repository. Exit 1 on errors (tracked or unignored `settings.local.json`, secrets in `settings.json`); `--strict` also fails on warnings.
@@ -106,7 +106,7 @@ pipx install git+https://github.com/koki-nakamura22/claude-code-secret-guard@v0.
 ```yaml
 repos:
   - repo: https://github.com/koki-nakamura22/claude-code-secret-guard
-    rev: v0.1.0
+    rev: v0.2.0
     hooks:
       - id: claude-settings
 ```
@@ -115,7 +115,7 @@ repos:
 
 ```yaml
 - uses: actions/checkout@v7.0.1
-- uses: koki-nakamura22/claude-code-secret-guard@v0.1.0
+- uses: koki-nakamura22/claude-code-secret-guard@v0.2.0
 ```
 
 ## How it compares
