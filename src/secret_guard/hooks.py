@@ -10,8 +10,11 @@ from typing import IO
 
 from .checks import check_repository
 from .detect import find_secrets
+from .transcript import redact_transcript
 
 DISABLE_ENV = "SECRET_GUARD_DISABLE"
+# Set from the plugin's userConfig option redact_transcripts ("/plugin" > manage). Unset means on.
+REDACT_OPTION_ENV = "CLAUDE_PLUGIN_OPTION_REDACT_TRANSCRIPTS"
 
 _REASON = (
     "secret-guard blocked this command because it contains a literal secret:\n"
@@ -67,7 +70,23 @@ def session_start(data: dict[str, object]) -> dict[str, object] | None:
     }
 
 
-HANDLERS = {"pre-tool-use": pre_tool_use, "session-start": session_start}
+def redact(data: dict[str, object]) -> dict[str, object] | None:
+    """Mask secrets in the session log after each turn (Stop), subagent (SubagentStop) and at SessionEnd."""
+    if os.environ.get(REDACT_OPTION_ENV, "").strip().lower() in ("false", "0"):
+        return None
+    key = "agent_transcript_path" if data.get("hook_event_name") == "SubagentStop" else "transcript_path"
+    path = data.get(key)
+    if not isinstance(path, str) or not path:
+        return None
+    data_dir = os.environ.get("CLAUDE_PLUGIN_DATA")
+    try:
+        redact_transcript(Path(path), Path(data_dir) if data_dir else None)
+    except OSError as e:
+        print(f"secret-guard: cannot mask secrets in {path}: {e}", file=sys.stderr)
+    return None
+
+
+HANDLERS = {"pre-tool-use": pre_tool_use, "session-start": session_start, "redact": redact}
 
 
 def run(event: str, stdin: IO[str] = sys.stdin, stdout: IO[str] = sys.stdout) -> int:

@@ -20,6 +20,8 @@ def isolated_git(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
     monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
     monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+    monkeypatch.delenv("CLAUDE_PLUGIN_DATA", raising=False)
+    monkeypatch.delenv("CLAUDE_PLUGIN_OPTION_REDACT_TRANSCRIPTS", raising=False)
     monkeypatch.delenv("SECRET_GUARD_DISABLE", raising=False)
     return gitconfig
 

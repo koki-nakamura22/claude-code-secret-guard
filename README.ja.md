@@ -34,6 +34,7 @@ gitleaks や TruffleHog は形の決まったキー (`ghp_...`・`AKIA...`) を�
    - 保存済みのルールにシークレットが無いか
 3. CLI・pre-commit・GitHub Action で、コミットを止めます。`settings.local.json` がコミットされるとき、またはコミットされる `settings.json` にシークレットがあるときに失敗します。
 4. `secret-guard fix` で、`settings.local.json` からシークレットを含む許可のルールを消します。
+5. `Stop`・`SubagentStop`・`SessionEnd` の hook で、セッションのログ (`~/.claude/projects/<プロジェクト>/<セッション>.jsonl`) のシークレットを伏せます。プロンプトや `!` のコマンドに打ったシークレット、Claude が返答で繰り返したシークレットは、ここに平文で書かれ、セッションを再開するとモデルにもう一度送られます。同じ長さの `*` でその場で上書きするので、Claude Code はそのままログを読めて、`-c`・`--resume` も動きます。止めるときは、`/plugin` の管理の画面で、このプラグインの設定の **Mask secrets in session logs** を切ります。
 
 依存はありません。Python 3.9 以上の標準ライブラリと git だけで動きます。
 
@@ -147,6 +148,7 @@ repos:
 - 検出は文字の形で行います。任意の文字列がパスワードかどうかは分からないので、変わった位置のシークレットは見逃し、まれに無害な値を止めます。Claude Code を動かす環境で `SECRET_GUARD_DISABLE=1` を設定すると、hook を止められます
 - `PreToolUse` の hook は Bash のツールだけが対象です。手で足したルールや、IDE で承認したルールは、`SessionStart` の確認と pre-commit で拾います。IDE で承認したルールは、共有の `.claude/settings.json` に書かれることがあります
 - `settings.local.json` を勝手に書き換えません。`secret-guard fix` は自分で実行してください
+- セッションのログを伏せても、変わるのはファイルだけです。実行中のセッションの Claude はシークレットを覚えたままで、ターンが終わるまではログにも平文で残ります。入力の履歴 (`~/.claude/history.jsonl`、上矢印で呼び出すもの) は、全部のセッションが共有するファイルなので書き換えません
 - 確かめたのは macOS と Linux です。hook は `python3` を呼ぶので、Windows では動かないことがあります
 
 ## ライセンス
