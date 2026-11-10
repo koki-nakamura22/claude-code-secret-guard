@@ -32,6 +32,9 @@ class TypedSecret:
 
     kind: str  # "prompt", "bash-input" or "bash-output"
     preview: str  # the text with the secret masked, on one line
+    # The values themselves, so that the same value in a `!` command and in its output counts once.
+    # Kept out of repr so that they never reach a log or a test failure message.
+    secrets: frozenset[str] = field(default=frozenset(), repr=False)
 
 
 @dataclass
@@ -116,7 +119,8 @@ def typed_secrets(data: object) -> list[TypedSecret]:
     for kind, text in items:
         findings = find_secrets(text)
         if findings:
-            found.append(TypedSecret(kind, _preview(redact(text, findings))))
+            values = frozenset(text[f.start : f.end] for f in findings)
+            found.append(TypedSecret(kind, _preview(redact(text, findings)), values))
     return found
 
 

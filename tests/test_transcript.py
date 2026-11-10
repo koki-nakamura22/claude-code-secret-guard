@@ -192,20 +192,30 @@ def test_redact_transcript_without_a_data_folder_reads_the_whole_file(tmp_path: 
 @pytest.mark.parametrize(
     ("content", "expected"),
     [
-        (f"PGPASSWORD={SECRET} psql", [TypedSecret("prompt", "PGPASSWORD=*** psql")]),
-        (f"<bash-input>PGPASSWORD={SECRET} psql</bash-input>", [TypedSecret("bash-input", "PGPASSWORD=*** psql")]),
+        (f"PGPASSWORD={SECRET} psql", [TypedSecret("prompt", "PGPASSWORD=*** psql", frozenset({SECRET}))]),
+        (
+            f"<bash-input>PGPASSWORD={SECRET} psql</bash-input>",
+            [TypedSecret("bash-input", "PGPASSWORD=*** psql", frozenset({SECRET}))],
+        ),
         (
             f"<bash-stdout>DB_PASSWORD={SECRET}</bash-stdout><bash-stderr></bash-stderr>",
-            [TypedSecret("bash-output", "DB_PASSWORD=***")],
+            [TypedSecret("bash-output", "DB_PASSWORD=***", frozenset({SECRET}))],
         ),
-        (f"first line\n  PGPASSWORD={SECRET}   psql  ", [TypedSecret("prompt", "PGPASSWORD=*** psql")]),
+        (
+            f"first line\n  PGPASSWORD={SECRET}   psql  ",
+            [TypedSecret("prompt", "PGPASSWORD=*** psql", frozenset({SECRET}))],
+        ),
+        (
+            f"PGPASSWORD={SECRET} psql; mysql -u root -pHunter2xx",
+            [TypedSecret("prompt", "PGPASSWORD=*** psql; mysql -u root -p***", frozenset({SECRET, "Hunter2xx"}))],
+        ),
     ],
-    ids=["prompt", "bash-input", "bash-output", "line-with-the-secret"],
+    ids=["prompt", "bash-input", "bash-output", "line-with-the-secret", "two-secrets"],
 )
 def test_typed_secrets_finds_what_the_user_typed_or_a_bash_command_printed(
     content: str, expected: list[TypedSecret]
 ) -> None:
-    """Prompts and `!` input and output are reported with the secret masked, on one line."""
+    """Prompts and `!` input and output are reported with the secret masked, on one line, with each value found."""
     # Act & Assert
     assert typed_secrets({"type": "user", "message": {"content": content}}) == expected
 
@@ -239,6 +249,18 @@ def test_long_preview_is_shortened() -> None:
     # Assert
     assert len(found.preview) == 100
     assert found.preview.endswith("\u2026")
+
+
+def test_typed_secret_repr_does_not_show_the_value() -> None:
+    """The value is kept for counting only, so printing a found secret (in a log or a failed test) does not leak it."""
+    # Arrange
+    [found] = typed_secrets({"type": "user", "message": {"content": f"PGPASSWORD={SECRET} psql"}})
+
+    # Act
+    text = repr(found)
+
+    # Assert
+    assert SECRET not in text
 
 
 def test_scan_without_writing_reports_but_leaves_the_file(tmp_path: Path) -> None:
