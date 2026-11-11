@@ -149,6 +149,7 @@ repos:
 - `PreToolUse` の hook は Bash のツールだけが対象です。手で足したルールや、IDE で承認したルールは、`SessionStart` の確認と pre-commit で拾います。IDE で承認したルールは、共有の `.claude/settings.json` に書かれることがあります
 - `settings.local.json` を勝手に書き換えません。`secret-guard fix` は自分で実行してください
 - セッションのログを伏せても、変わるのはファイルだけです。実行中のセッションの Claude はシークレットを覚えたままで、ターンが終わるまではログにも平文で残ります。入力の履歴 (`~/.claude/history.jsonl`、上矢印で呼び出すもの) は、全部のセッションが共有するファイルなので書き換えません
+- セッションのログで伏せるのは、`PGPASSWORD=...` のような形で値を見つけた行の中だけです。同じ値がほかの行に出たとき (`! echo $PGPASSWORD` の出力、「パスワードは …」のような文、後の Claude の返答) は残ります。形で一度も書かれなかった値は、どこでも伏せません ([#29](https://github.com/koki-nakamura22/claude-code-secret-guard/issues/29))
 - `!` (bash モード) で実行するコマンドは、実行の前にどの hook も通らないので止められません。コマンドと出力は Claude に送られます。secret-guard はターンの後に知らせ、ログを伏せます
 - 確かめたのは macOS と Linux です。hook は `python3` を呼ぶので、Windows では動かないことがあります
 

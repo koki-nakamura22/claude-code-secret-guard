@@ -149,6 +149,7 @@ The cases were written by the author of this tool. Read this as a comparison of 
 - The `PreToolUse` hook covers the Bash tool only. Rules you add by hand or approve in an IDE are caught by the `SessionStart` check and the pre-commit hook instead. An IDE approval can write to the shared `.claude/settings.json`.
 - It does not rewrite `settings.local.json` on its own. Run `secret-guard fix` yourself.
 - Masking the session log changes the file only. Within the running session, Claude still has the secret and the log holds it in plain text until the end of the turn. Your input history (`~/.claude/history.jsonl`, used by the up arrow) is not rewritten, because every session shares that file.
+- A secret is masked only on the log line where its pattern is found, such as `PGPASSWORD=...`. The same value on another line stays: the output of `! echo $PGPASSWORD`, a sentence like "the password is ...", or a later reply from Claude. A value never written in a pattern is not masked anywhere. ([#29](https://github.com/koki-nakamura22/claude-code-secret-guard/issues/29))
 - Commands you run with `!` (bash mode) reach no hook before they run, so they cannot be blocked. The command and its output are sent to Claude. secret-guard tells you after the turn and masks the log.
 - Tested on macOS and Linux. The hooks call `python3`, which Windows may not have.
 
