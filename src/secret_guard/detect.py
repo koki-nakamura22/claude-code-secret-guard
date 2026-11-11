@@ -44,6 +44,7 @@ _WORD = r"""(?:"(?P<dq>[^"]*)"|'(?P<sq>[^']*)'|(?P<bare>[^\s;&|<>()'"`]+))"""
 _PLACEHOLDER = re.compile(
     r"""^(?:
         [*xX.\-_]+                      # ***, xxx, ...
+      | (?:\\\*)+                       # \*\*\*, a *** escaped for grep
       | <[^>]*>                         # <password>
       | \{\{[^}]*\}\}                   # {{ password }}
       | \{[^{}]*\}(?:\\[nrt])*          # {password} of str.format and f-strings, maybe before "\n"
